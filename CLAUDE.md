@@ -12,7 +12,7 @@ High-performance real-time Solana transaction indexer. Streams confirmed transac
 |------|-----------|
 | Any production code | [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md) |
 | Any test code | [docs/TESTING_STANDARDS.md](docs/TESTING_STANDARDS.md) |
-| Story details | [docs/github-issues.md](docs/github-issues.md) |
+| Story details | `gh issue view <number>` — always fetch from GitHub, never from local files |
 | Architecture & phases | [docs/implementation-plan.md](docs/implementation-plan.md) |
 | Functional requirements | [docs/functional-spec.md](docs/functional-spec.md) |
 
@@ -75,86 +75,25 @@ prism/                           (root — convention plugins only)
 application → domain ← infrastructure
 ```
 
-```
-domain/                            ZERO framework imports (only Lombok + java.*)
-├── model/                         SolanaTransaction (aggregate root), Account, Signature, Pubkey, etc.
-├── port/                          TransactionStream, TransactionRepository, MetricsRecorder, etc.
-└── service/                       TransactionProcessor, TransactionBatchService, AccountBatchService
+- `domain/` — models, ports, services. ZERO framework imports (only Lombok + `java.*`)
+- `infrastructure/` — implements domain ports (JDBC, gRPC, WebSocket, metrics)
+- `application/` — Helidon SE routes, lifecycle, config, MapStruct mappers
 
-infrastructure/                    Implements domain ports
-├── grpc/                          YellowstoneTransactionStream (paid), TransactionParser
-├── websocket/                     WebSocketTransactionStream (free), BlockNotificationParser
-├── persistence/                   CopyTransactionRepository, JdbcXxxRepository, DataSourceFactory
-├── metrics/                       MicrometerMetricsRecorder, BenchmarkLogReporter
-└── console/                       ConsoleOutputFormatter
-
-application/                       Helidon SE routes + lifecycle
-├── IndexerApplication.java        main() — wires everything
-├── IndexerConfig.java             Env var parsing (like Rust Config::from_env)
-├── routing/                       TransactionRoutes, TransferRoutes, HealthRoutes, etc.
-└── mapper/                        MapStruct: domain → API response
-```
-
-## ArchUnit Rules (5 Non-Negotiable, Build-Time)
-
-| # | Rule |
-|---|------|
-| 1 | `domain..` must NOT depend on `infrastructure..` |
-| 2 | `domain..` must NOT depend on `application..` |
-| 3 | `domain..` must NOT import `io.helidon..`, `jakarta..`, `io.avaje..` |
-| 4 | `domain..` must NOT import `java.sql..` |
-| 5 | `infrastructure..` must NOT depend on `application.routing..` |
-
-## Style Rules (always applied)
-
-- No comments or Javadoc — code must be self-documenting
-- No `@Autowired` — use `@RequiredArgsConstructor` with `private final` fields
-- No `System.out`/`System.err` — use `@Slf4j`
-- Use `var` for local variables when type is obvious
-- `@Builder(toBuilder = true)` on all records (3+ fields)
-- Strongly-typed value objects for identifiers: `Signature`, `Pubkey` (not raw `String`)
-- `BigDecimal` for all monetary/SOL amounts (not `double`)
-- Compact constructor validation: `Objects.requireNonNull` for references, non-negative checks for primitives
-- Aggregate root projections: `SolanaTransaction.toLargeTransfer()`, `.toMemo()`, `.toFailedTransaction()`
-- Functional style: streams over loops, Optional pipelines over null checks
-- `ReentrantLock` over `synchronized` everywhere (VT safety)
-- AssertJ only — no JUnit `assertEquals`/`assertTrue`
-- BDD Mockito only — `given()`/`then()`, never `when()`/`verify()`
-- No generic matchers (`any()`, `anyString()`, `eq()`) — use actual values
-- `eqIgnoringTimestamps()` and `eqIgnoring()` from `TestUtils` for mock verification
-
-## Testing Conventions
-
-| Rule | Detail |
-|------|--------|
-| Golden rule | Build expected object → single `assertThat(actual).usingRecursiveComparison().isEqualTo(expected)` |
-| Naming | `should<Action><Condition>` |
-| Structure | `// given`, `// when`, `// then` comments in every test |
-| Mocking | BDDMockito only. No generic matchers. Pass actual values. |
-| Fixtures | `SOME_*` constants + `<concept>Builder()` factories in `src/testFixtures/fixtures/` |
-| Unit tests | `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks` |
-| Integration tests | Testcontainers PostgreSQL + direct JDBC (no Spring context) |
-| Source sets | `src/test/` (unit), `src/integration-test/` (Testcontainers), `src/testFixtures/` (shared) |
+Full layer rules, ArchUnit enforcement, and directory layout: see [CODING_STANDARDS.md §1](docs/CODING_STANDARDS.md#1-architecture-hexagonal-ports-and-adapters).
 
 ## Key Design Decisions
 
 | Decision | Choice | Why |
 |----------|--------|-----|
-| Helidon 4 SE | No Spring Boot | +291% VT throughput on JDK 25, < 7ms p99.999, sub-50MB, < 100ms startup |
 | COPY FROM STDIN | pgjdbc CopyManager | 5-10x faster than INSERT for transaction table |
 | Dual HikariCP pools | Write (20) + Read (20) | API latency independent of ingest load |
 | Unbounded tx queue | `LinkedTransferQueue` | Prevents gRPC/WS backpressure disconnection |
-| Bounded acct queue | `ArrayBlockingQueue(10K)` | Drop if full — accounts less critical than transactions |
+| Bounded acct queue | `ArrayBlockingQueue(10K)` | Drop if full — accounts less critical |
 | 200 tx / 100ms batch | Dual trigger | ~200x fewer DB round-trips, < 200ms max latency |
-| 200 acct / 2s batch | Slower cadence | Accounts are less latency-sensitive, dedup by pubkey |
-| WebSocket default | `STREAM_MODE=websocket` | Free — works with any public Solana RPC endpoint |
-| gRPC opt-in | `STREAM_MODE=grpc` | Paid ($300-500/mo) but lower latency |
-| `ReentrantLock` | No `synchronized` | `synchronized` pins VT carrier threads |
-| Avaje Inject | Compile-time DI | Zero reflection, zero runtime overhead, JSR-330 compatible |
-| MapStruct jsr330 | `componentModel = "jsr330"` | Compatible with Avaje Inject, compile-time mapping |
-| `BigDecimal` for amounts | No `double`/`float` | Avoids floating-point precision issues in monetary values |
-| `Signature`/`Pubkey` VOs | No raw `String` | Compile-time type safety prevents mixing identifiers |
-| Compact constructors | Validate invariants | Fail-fast on null references and negative primitives |
+| 200 acct / 2s batch | Slower cadence | Less latency-sensitive, dedup by pubkey |
+
+Style rules, coding conventions, and DDD patterns: see [CODING_STANDARDS.md](docs/CODING_STANDARDS.md).
+Testing conventions: see [TESTING_STANDARDS.md](docs/TESTING_STANDARDS.md).
 
 ## Configuration
 
@@ -190,25 +129,13 @@ Helidon SE WebServer → 8 REST endpoints → read pool → paginated JSON
 
 ## Pre-Commit Checklist
 
-- [ ] Domain models: ZERO framework imports (only Lombok + `java.*`)
-- [ ] Domain models: compact constructor validation (`Objects.requireNonNull`, non-negative checks)
-- [ ] Domain models: `Signature`/`Pubkey` value objects for identifiers (not raw `String`)
-- [ ] Domain models: `BigDecimal` for monetary amounts (not `double`/`float`)
-- [ ] Domain ports: plain interfaces, no annotations, use value object types in signatures
+Full checklist: [CODING_STANDARDS.md §10](docs/CODING_STANDARDS.md#10-quick-reference-checklist). Key gates:
+
+- [ ] `./gradlew build` passes (compile + Spotless + unit + integration + ArchUnit)
+- [ ] Domain layer: zero framework imports, compact constructor validation, value objects, `BigDecimal`
+- [ ] Tests follow [TESTING_STANDARDS.md](docs/TESTING_STANDARDS.md)
 - [ ] `ReentrantLock` used, no `synchronized`
-- [ ] All mapping: MapStruct `componentModel = "jsr330"`
-- [ ] Read methods use read pool, write methods use write pool
-- [ ] SQL is parameterized — no string concatenation
-- [ ] Tests: single-assert pattern with recursive comparison
-- [ ] Tests: BDDMockito, no generic matchers
-- [ ] Tests: `// given`, `// when`, `// then` comments
-- [ ] Tests: fixtures in `src/testFixtures/fixtures/`, not private methods
-- [ ] Tests: validation tests for every compact constructor constraint
-- [ ] Functional style: streams over loops, Optional over null checks
-- [ ] `var` for local variables, `@Slf4j` for logging
-- [ ] No comments, no Javadoc
-- [ ] `./gradlew build` passes
-- [ ] Spotless formatting applied
+- [ ] Functional style, `var` for locals, `@Slf4j` for logging, no comments
 
 ## Conflict Resolution Order
 
