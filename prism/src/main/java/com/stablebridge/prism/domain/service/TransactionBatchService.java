@@ -2,6 +2,7 @@ package com.stablebridge.prism.domain.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -20,7 +21,7 @@ public class TransactionBatchService {
     private volatile boolean running = true;
 
     public TransactionBatchService(TransactionProcessor processor) {
-        this.processor = processor;
+        this.processor = Objects.requireNonNull(processor, "processor must not be null");
     }
 
     public void enqueue(SolanaTransaction tx) {
@@ -28,6 +29,7 @@ public class TransactionBatchService {
     }
 
     public void run() {
+        log.info("TransactionBatchService started");
         var buffer = new ArrayList<SolanaTransaction>();
         while (running || !queue.isEmpty()) {
             try {
@@ -36,6 +38,7 @@ public class TransactionBatchService {
                     buffer.add(tx);
                 }
                 if (buffer.size() >= BATCH_SIZE || (tx == null && !buffer.isEmpty())) {
+                    log.debug("Flushing batch of {} transactions", buffer.size());
                     processor.process(List.copyOf(buffer));
                     buffer.clear();
                 }
@@ -45,11 +48,14 @@ public class TransactionBatchService {
             }
         }
         if (!buffer.isEmpty()) {
+            log.debug("Flushing remaining {} transactions", buffer.size());
             processor.process(List.copyOf(buffer));
         }
+        log.info("TransactionBatchService stopped");
     }
 
     public void close() {
+        log.info("TransactionBatchService closing");
         running = false;
     }
 }
