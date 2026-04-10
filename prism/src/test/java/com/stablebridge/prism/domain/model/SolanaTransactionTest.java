@@ -4,6 +4,8 @@ import static com.stablebridge.prism.fixtures.TransactionFixtures.SOME_TRANSACTI
 import static com.stablebridge.prism.fixtures.TransactionFixtures.transactionBuilder;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
+
 import org.junit.jupiter.api.Test;
 
 class SolanaTransactionTest {
@@ -14,7 +16,7 @@ class SolanaTransactionTest {
         var expected = SolanaTransaction.builder()
                 .signature("sig1")
                 .slot(100L)
-                .amount(1.5)
+                .amount(new BigDecimal("1.5"))
                 .failed(false)
                 .memo("test memo")
                 .from("sender")
@@ -25,7 +27,7 @@ class SolanaTransactionTest {
         var result = SolanaTransaction.builder()
                 .signature("sig1")
                 .slot(100L)
-                .amount(1.5)
+                .amount(new BigDecimal("1.5"))
                 .failed(false)
                 .memo("test memo")
                 .from("sender")

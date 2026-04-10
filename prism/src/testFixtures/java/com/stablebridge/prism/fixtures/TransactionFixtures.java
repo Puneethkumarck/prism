@@ -1,5 +1,6 @@
 package com.stablebridge.prism.fixtures;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.stablebridge.prism.domain.model.FailedTransaction;
@@ -15,7 +16,7 @@ public final class TransactionFixtures {
         return SolanaTransaction.builder()
                 .signature("5Kx7aEwMb" + UUID.randomUUID().toString().substring(0, 8))
                 .slot(280_000_000L)
-                .amount(0.5)
+                .amount(new BigDecimal("0.5"))
                 .failed(false)
                 .from("SenderPubkey1234abcd5678")
                 .to("ReceiverPubkey12efgh5678");
@@ -35,14 +36,14 @@ public final class TransactionFixtures {
 
     public static final SolanaTransaction SOME_LARGE_TRANSFER = transactionBuilder()
             .signature("5Kx7aEwMbLargeTransfer01")
-            .amount(5.0)
+            .amount(new BigDecimal("5.0"))
             .build();
 
     public static LargeTransfer.LargeTransferBuilder largeTransferBuilder() {
         return LargeTransfer.builder()
                 .signature("5Kx7aEwMbLargeTransfer01")
                 .slot(280_000_000L)
-                .amount(5.0);
+                .amount(new BigDecimal("5.0"));
     }
 
     public static final LargeTransfer SOME_LARGE_TRANSFER_RECORD = largeTransferBuilder().build();

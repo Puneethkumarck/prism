@@ -3,6 +3,8 @@ package com.stablebridge.prism.domain.model;
 import static com.stablebridge.prism.fixtures.TransactionFixtures.largeTransferBuilder;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
+
 import org.junit.jupiter.api.Test;
 
 class LargeTransferTest {
@@ -13,14 +15,14 @@ class LargeTransferTest {
         var expected = LargeTransfer.builder()
                 .signature("sig1")
                 .slot(100L)
-                .amount(5.0)
+                .amount(new BigDecimal("5.0"))
                 .build();
 
         // when
         var result = LargeTransfer.builder()
                 .signature("sig1")
                 .slot(100L)
-                .amount(5.0)
+                .amount(new BigDecimal("5.0"))
                 .build();
 
         // then
