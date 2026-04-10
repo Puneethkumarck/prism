@@ -5,6 +5,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import com.stablebridge.prism.domain.model.Account;
@@ -27,8 +28,8 @@ public class AccountBatchService {
     private volatile boolean running = true;
 
     public AccountBatchService(AccountRepository accountRepository, MetricsRecorder metricsRecorder) {
-        this.accountRepository = accountRepository;
-        this.metricsRecorder = metricsRecorder;
+        this.accountRepository = Objects.requireNonNull(accountRepository, "accountRepository must not be null");
+        this.metricsRecorder = Objects.requireNonNull(metricsRecorder, "metricsRecorder must not be null");
     }
 
     public boolean offer(Account account) {
@@ -44,7 +45,11 @@ public class AccountBatchService {
                     buffer.add(account);
                 }
                 if (buffer.size() >= BATCH_SIZE || (account == null && !buffer.isEmpty())) {
-                    flush(buffer);
+                    try {
+                        flush(buffer);
+                    } catch (Exception e) {
+                        log.error("Failed to flush {} accounts", buffer.size(), e);
+                    }
                     buffer.clear();
                 }
             } catch (InterruptedException e) {
@@ -53,14 +58,18 @@ public class AccountBatchService {
             }
         }
         if (!buffer.isEmpty()) {
-            flush(buffer);
+            try {
+                flush(buffer);
+            } catch (Exception e) {
+                log.error("Failed to flush {} remaining accounts on shutdown", buffer.size(), e);
+            }
         }
     }
 
     private void flush(List<Account> buffer) {
         var map = new HashMap<Pubkey, Account>();
         buffer.forEach(a -> map.merge(a.pubkey(), a, (prev, curr) -> curr.slot() > prev.slot() ? curr : prev));
-        var deduped = new ArrayList<>(map.values());
+        var deduped = List.copyOf(map.values());
         accountRepository.batchUpsert(deduped);
         metricsRecorder.recordAccountsWritten(deduped.size());
         log.debug("Flushed {} accounts", deduped.size());

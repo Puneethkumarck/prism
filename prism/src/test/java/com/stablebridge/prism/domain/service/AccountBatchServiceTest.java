@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -31,10 +32,19 @@ class AccountBatchServiceTest {
     @Captor
     private ArgumentCaptor<List<Account>> accountsCaptor;
 
+    @Captor
+    private ArgumentCaptor<Integer> metricsCaptor;
+
+    private AccountBatchService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new AccountBatchService(accountRepository, metricsRecorder);
+    }
+
     @Test
     void shouldFlushOnBatchSize() throws InterruptedException {
         // given
-        var service = new AccountBatchService(accountRepository, metricsRecorder);
         for (var i = 0; i < 200; i++) {
             service.offer(
                     accountBuilder()
@@ -46,18 +56,20 @@ class AccountBatchServiceTest {
         var thread = Thread.ofVirtual().start(service::run);
         Thread.sleep(500);
         service.close();
-        thread.join();
+        thread.join(5000);
 
         // then
         then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
         var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
         assertThat(flushed).hasSize(200);
+        then(metricsRecorder).should(atLeastOnce()).recordAccountsWritten(metricsCaptor.capture());
+        var totalRecorded = metricsCaptor.getAllValues().stream().mapToInt(Integer::intValue).sum();
+        assertThat(totalRecorded).isEqualTo(200);
     }
 
     @Test
     void shouldFlushOnTimeout() throws InterruptedException {
         // given
-        var service = new AccountBatchService(accountRepository, metricsRecorder);
         for (var i = 0; i < 50; i++) {
             service.offer(
                     accountBuilder()
@@ -69,7 +81,7 @@ class AccountBatchServiceTest {
         var thread = Thread.ofVirtual().start(service::run);
         Thread.sleep(3000);
         service.close();
-        thread.join();
+        thread.join(5000);
 
         // then
         then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
@@ -80,7 +92,6 @@ class AccountBatchServiceTest {
     @Test
     void shouldDeduplicateByPubkeyKeepingHighestSlot() throws InterruptedException {
         // given
-        var service = new AccountBatchService(accountRepository, metricsRecorder);
         var sharedPubkey = new Pubkey("7xKXtg2CDedupPubkey0001");
         service.offer(accountBuilder().pubkey(sharedPubkey).slot(100L).build());
         service.offer(accountBuilder().pubkey(sharedPubkey).slot(300L).build());
@@ -90,7 +101,7 @@ class AccountBatchServiceTest {
         var thread = Thread.ofVirtual().start(service::run);
         Thread.sleep(3000);
         service.close();
-        thread.join();
+        thread.join(5000);
 
         // then
         then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
@@ -103,7 +114,6 @@ class AccountBatchServiceTest {
     @Test
     void shouldDropWhenQueueFull() {
         // given
-        var service = new AccountBatchService(accountRepository, metricsRecorder);
         for (var i = 0; i < 10_000; i++) {
             service.offer(
                     accountBuilder()
@@ -125,7 +135,6 @@ class AccountBatchServiceTest {
     @Test
     void shouldDrainOnClose() throws InterruptedException {
         // given
-        var service = new AccountBatchService(accountRepository, metricsRecorder);
         for (var i = 0; i < 10; i++) {
             service.offer(
                     accountBuilder()
@@ -136,11 +145,25 @@ class AccountBatchServiceTest {
         // when
         service.close();
         var thread = Thread.ofVirtual().start(service::run);
-        thread.join();
+        thread.join(5000);
 
         // then
         then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
         var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
         assertThat(flushed).hasSize(10);
+    }
+
+    @Test
+    void shouldNotFlushEmptyBatch() throws InterruptedException {
+        // given
+        var thread = Thread.ofVirtual().start(service::run);
+
+        // when
+        Thread.sleep(300);
+        service.close();
+        thread.join(5000);
+
+        // then
+        then(accountRepository).shouldHaveNoInteractions();
     }
 }
