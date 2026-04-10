@@ -9,4 +9,6 @@ public interface MetricsRecorder {
     void recordSlot();
 
     void incrementReceived();
+
+    void recordAccountsWritten(int count);
 }
