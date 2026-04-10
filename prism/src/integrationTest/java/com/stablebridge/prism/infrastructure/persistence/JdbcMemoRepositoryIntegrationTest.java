@@ -89,11 +89,27 @@ class JdbcMemoRepositoryIntegrationTest {
                 .memoText("third")
                 .build();
 
-        repository.bulkInsert(List.of(memo1));
-        Thread.sleep(50);
-        repository.bulkInsert(List.of(memo2));
-        Thread.sleep(50);
-        repository.bulkInsert(List.of(memo3));
+        try (var conn = writePool.getConnection();
+                var ps = conn.prepareStatement(
+                        "INSERT INTO memos (signature, memo, created_at) VALUES (?, ?, NOW() - INTERVAL '2 seconds')")) {
+            ps.setString(1, memo1.signature().value());
+            ps.setString(2, memo1.memoText());
+            ps.execute();
+        }
+        try (var conn = writePool.getConnection();
+                var ps = conn.prepareStatement(
+                        "INSERT INTO memos (signature, memo, created_at) VALUES (?, ?, NOW() - INTERVAL '1 second')")) {
+            ps.setString(1, memo2.signature().value());
+            ps.setString(2, memo2.memoText());
+            ps.execute();
+        }
+        try (var conn = writePool.getConnection();
+                var ps = conn.prepareStatement(
+                        "INSERT INTO memos (signature, memo, created_at) VALUES (?, ?, NOW())")) {
+            ps.setString(1, memo3.signature().value());
+            ps.setString(2, memo3.memoText());
+            ps.execute();
+        }
 
         // when
         var result = repository.findAll(10, 0);

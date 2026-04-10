@@ -7,19 +7,15 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.inject.Singleton;
-
 import com.stablebridge.prism.domain.model.LargeTransfer;
 import com.stablebridge.prism.domain.model.Signature;
 import com.stablebridge.prism.domain.port.TransferRepository;
 
-import io.avaje.inject.External;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-@Singleton
 @Slf4j
+@RequiredArgsConstructor
 public class JdbcTransferRepository implements TransferRepository {
 
     private static final String INSERT_SQL =
@@ -33,14 +29,6 @@ public class JdbcTransferRepository implements TransferRepository {
 
     private final DataSource writePool;
     private final DataSource readPool;
-
-    @Inject
-    public JdbcTransferRepository(
-            @External @Named("write") DataSource writePool,
-            @External @Named("read") DataSource readPool) {
-        this.writePool = writePool;
-        this.readPool = readPool;
-    }
 
     @Override
     public void bulkInsert(List<LargeTransfer> transfers) {
