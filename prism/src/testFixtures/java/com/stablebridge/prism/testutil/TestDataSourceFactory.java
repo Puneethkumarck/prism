@@ -13,6 +13,7 @@ public final class TestDataSourceFactory {
         config.setUsername(username);
         config.setPassword(password);
         config.setMaximumPoolSize(5);
+        config.setMinimumIdle(0);
         config.setReadOnly(readOnly);
         return new HikariDataSource(config);
     }
