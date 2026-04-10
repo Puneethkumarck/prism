@@ -1,0 +1,13 @@
+package com.stablebridge.prism.domain.port;
+
+import java.util.List;
+import java.util.Optional;
+
+import com.stablebridge.prism.domain.model.Account;
+
+public interface AccountRepository {
+
+    void batchUpsert(List<Account> accounts);
+
+    Optional<Account> findByPubkey(String pubkey);
+}
