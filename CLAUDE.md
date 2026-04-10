@@ -77,7 +77,7 @@ application → domain ← infrastructure
 
 ```
 domain/                            ZERO framework imports (only Lombok + java.*)
-├── model/                         SolanaTransaction, Account, BatchResult, etc.
+├── model/                         SolanaTransaction (aggregate root), Account, Signature, Pubkey, etc.
 ├── port/                          TransactionStream, TransactionRepository, MetricsRecorder, etc.
 └── service/                       TransactionProcessor, TransactionBatchService, AccountBatchService
 
@@ -112,6 +112,10 @@ application/                       Helidon SE routes + lifecycle
 - No `System.out`/`System.err` — use `@Slf4j`
 - Use `var` for local variables when type is obvious
 - `@Builder(toBuilder = true)` on all records (3+ fields)
+- Strongly-typed value objects for identifiers: `Signature`, `Pubkey` (not raw `String`)
+- `BigDecimal` for all monetary/SOL amounts (not `double`)
+- Compact constructor validation: `Objects.requireNonNull` for references, non-negative checks for primitives
+- Aggregate root projections: `SolanaTransaction.toLargeTransfer()`, `.toMemo()`, `.toFailedTransaction()`
 - Functional style: streams over loops, Optional pipelines over null checks
 - `ReentrantLock` over `synchronized` everywhere (VT safety)
 - AssertJ only — no JUnit `assertEquals`/`assertTrue`
@@ -148,6 +152,9 @@ application/                       Helidon SE routes + lifecycle
 | `ReentrantLock` | No `synchronized` | `synchronized` pins VT carrier threads |
 | Avaje Inject | Compile-time DI | Zero reflection, zero runtime overhead, JSR-330 compatible |
 | MapStruct jsr330 | `componentModel = "jsr330"` | Compatible with Avaje Inject, compile-time mapping |
+| `BigDecimal` for amounts | No `double`/`float` | Avoids floating-point precision issues in monetary values |
+| `Signature`/`Pubkey` VOs | No raw `String` | Compile-time type safety prevents mixing identifiers |
+| Compact constructors | Validate invariants | Fail-fast on null references and negative primitives |
 
 ## Configuration
 
@@ -184,7 +191,10 @@ Helidon SE WebServer → 8 REST endpoints → read pool → paginated JSON
 ## Pre-Commit Checklist
 
 - [ ] Domain models: ZERO framework imports (only Lombok + `java.*`)
-- [ ] Domain ports: plain interfaces, no annotations
+- [ ] Domain models: compact constructor validation (`Objects.requireNonNull`, non-negative checks)
+- [ ] Domain models: `Signature`/`Pubkey` value objects for identifiers (not raw `String`)
+- [ ] Domain models: `BigDecimal` for monetary amounts (not `double`/`float`)
+- [ ] Domain ports: plain interfaces, no annotations, use value object types in signatures
 - [ ] `ReentrantLock` used, no `synchronized`
 - [ ] All mapping: MapStruct `componentModel = "jsr330"`
 - [ ] Read methods use read pool, write methods use write pool
@@ -193,6 +203,7 @@ Helidon SE WebServer → 8 REST endpoints → read pool → paginated JSON
 - [ ] Tests: BDDMockito, no generic matchers
 - [ ] Tests: `// given`, `// when`, `// then` comments
 - [ ] Tests: fixtures in `src/testFixtures/fixtures/`, not private methods
+- [ ] Tests: validation tests for every compact constructor constraint
 - [ ] Functional style: streams over loops, Optional over null checks
 - [ ] `var` for local variables, `@Slf4j` for logging
 - [ ] No comments, no Javadoc
