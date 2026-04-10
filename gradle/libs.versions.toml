@@ -1,0 +1,77 @@
+[versions]
+helidon = "4.2.2"
+avaje-inject = "11.4"
+pgjdbc = "42.7.7"
+hikari = "6.3.0"
+jackson = "2.19.0"
+mapstruct = "1.6.3"
+flyway = "11.8.2"
+resilience4j = "2.3.0"
+micrometer = "1.15.0"
+archunit = "1.4.1"
+testcontainers = "1.21.3"
+mockito = "5.18.0"
+assertj = "3.27.3"
+protobuf = "4.31.1"
+lombok = "1.18.38"
+logback = "1.5.18"
+logstash-logback = "8.1"
+jansi = "2.4.2"
+junit = "5.12.2"
+slf4j = "2.0.17"
+
+[libraries]
+helidon-webserver = { module = "io.helidon.webserver:helidon-webserver", version.ref = "helidon" }
+helidon-webserver-cors = { module = "io.helidon.webserver:helidon-webserver-cors", version.ref = "helidon" }
+helidon-webserver-observe = { module = "io.helidon.webserver.observe:helidon-webserver-observe", version.ref = "helidon" }
+helidon-webserver-observe-metrics = { module = "io.helidon.webserver.observe:helidon-webserver-observe-metrics", version.ref = "helidon" }
+helidon-webclient = { module = "io.helidon.webclient:helidon-webclient", version.ref = "helidon" }
+helidon-http-media-jackson = { module = "io.helidon.http.media:helidon-http-media-jackson", version.ref = "helidon" }
+helidon-webserver-testing = { module = "io.helidon.webserver.testing:helidon-webserver-testing-junit5", version.ref = "helidon" }
+
+avaje-inject = { module = "io.avaje:avaje-inject", version.ref = "avaje-inject" }
+avaje-inject-generator = { module = "io.avaje:avaje-inject-generator", version.ref = "avaje-inject" }
+
+pgjdbc = { module = "org.postgresql:postgresql", version.ref = "pgjdbc" }
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations" }
+jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310" }
+
+mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+
+resilience4j-retry = { module = "io.github.resilience4j:resilience4j-retry", version.ref = "resilience4j" }
+
+micrometer-core = { module = "io.micrometer:micrometer-core", version.ref = "micrometer" }
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-junit5 = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
+
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
+
+jansi = { module = "org.fusesource.jansi:jansi", version.ref = "jansi" }
