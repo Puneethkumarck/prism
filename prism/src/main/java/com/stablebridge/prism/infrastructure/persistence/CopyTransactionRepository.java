@@ -13,6 +13,7 @@ import javax.sql.DataSource;
 
 import org.postgresql.PGConnection;
 
+import com.stablebridge.prism.domain.exception.PersistenceException;
 import com.stablebridge.prism.domain.model.Signature;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
 import com.stablebridge.prism.domain.port.TransactionRepository;
@@ -82,7 +83,7 @@ public class CopyTransactionRepository implements TransactionRepository {
             }
             log.debug("COPY inserted {} transactions", successful.size());
         } catch (SQLException | IOException e) {
-            throw new RuntimeException("Failed to COPY insert transactions", e);
+            throw new PersistenceException("Failed to COPY insert transactions", e);
         }
     }
 
@@ -95,7 +96,7 @@ public class CopyTransactionRepository implements TransactionRepository {
                 return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to find transaction by signature", e);
+            throw new PersistenceException("Failed to find transaction by signature", e);
         }
     }
 
@@ -112,7 +113,7 @@ public class CopyTransactionRepository implements TransactionRepository {
                 return results;
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to find transactions by slot", e);
+            throw new PersistenceException("Failed to find transactions by slot", e);
         }
     }
 
@@ -137,7 +138,7 @@ public class CopyTransactionRepository implements TransactionRepository {
                 return results;
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to find transactions", e);
+            throw new PersistenceException("Failed to find transactions", e);
         }
     }
 
@@ -149,7 +150,7 @@ public class CopyTransactionRepository implements TransactionRepository {
             rs.next();
             return rs.getLong(1);
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to count transactions", e);
+            throw new PersistenceException("Failed to count transactions", e);
         }
     }
 
@@ -163,14 +164,14 @@ public class CopyTransactionRepository implements TransactionRepository {
                 return rs.getLong(1);
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to count transactions by success", e);
+            throw new PersistenceException("Failed to count transactions by success", e);
         }
     }
 
     private String buildTsv(List<SolanaTransaction> transactions) {
         var sb = new StringBuilder();
         for (var tx : transactions) {
-            sb.append(tx.signature().value())
+            sb.append(escapeCopyText(tx.signature().value()))
                     .append('\t')
                     .append(tx.slot())
                     .append('\t')
@@ -178,6 +179,12 @@ public class CopyTransactionRepository implements TransactionRepository {
                     .append('\n');
         }
         return sb.toString();
+    }
+
+    private String escapeCopyText(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("\t", "\\t")
+                .replace("\n", "\\n");
     }
 
     private SolanaTransaction mapRow(ResultSet rs) throws SQLException {
