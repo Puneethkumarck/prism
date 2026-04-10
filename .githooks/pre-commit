@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Running Spotless check..."
+./gradlew spotlessCheck --quiet
+
+echo "==> Running ArchUnit tests..."
+./gradlew test --tests '*.ArchitectureTest' --quiet
+
+echo "==> Pre-commit checks passed."

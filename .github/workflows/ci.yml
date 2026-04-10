@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: prism_test
+          POSTGRES_USER: prism
+          POSTGRES_PASSWORD: prism
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U prism"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check formatting (Spotless)
+        run: ./gradlew spotlessCheck
+
+      - name: Run unit tests
+        run: ./gradlew test
+
+      - name: Run ArchUnit tests
+        run: ./gradlew test --tests '*.ArchitectureTest'
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/prism_test?user=prism&password=prism
+        run: ./gradlew integrationTest
+
+      - name: Full build verification
+        run: ./gradlew build
