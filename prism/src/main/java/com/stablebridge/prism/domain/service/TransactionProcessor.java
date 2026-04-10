@@ -67,7 +67,11 @@ public class TransactionProcessor {
                 .transfers(transfers.size())
                 .build();
 
-        metricsRecorder.recordBatch(result);
+        try {
+            metricsRecorder.recordBatch(result);
+        } catch (RuntimeException e) {
+            log.warn("Failed to record batch metrics", e);
+        }
 
         return result;
     }
