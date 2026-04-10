@@ -1,5 +1,6 @@
 plugins {
     id("prism.service")
+    id("com.google.protobuf")
 }
 
 dependencies {
@@ -27,6 +28,8 @@ dependencies {
 
     implementation(libs.flyway.core)
     implementation(libs.flyway.postgresql)
+
+    implementation(libs.protobuf.java)
 
     implementation(libs.resilience4j.retry)
 
@@ -68,4 +71,10 @@ dependencies {
 
     "integrationTestImplementation"(libs.testcontainers.junit5)
     "integrationTestImplementation"(libs.testcontainers.postgresql)
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
 }
