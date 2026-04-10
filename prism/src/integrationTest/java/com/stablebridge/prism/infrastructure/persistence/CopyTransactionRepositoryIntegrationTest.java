@@ -159,7 +159,7 @@ class CopyTransactionRepositoryIntegrationTest {
                 .allSatisfy(tx -> assertThat(tx.slot()).isEqualTo(slot));
         assertThat(result)
                 .extracting(tx -> tx.signature().value())
-                .containsExactlyInAnyOrder(
+                .containsExactly(
                         "5Kx7aEwMbSlotTest00001",
                         "5Kx7aEwMbSlotTest00002",
                         "5Kx7aEwMbSlotTest00003");
@@ -179,7 +179,12 @@ class CopyTransactionRepositoryIntegrationTest {
         var result = repository.findAll(3, 0, null);
 
         // then
-        assertThat(result).hasSize(3);
+        assertThat(result)
+                .extracting(tx -> tx.signature().value())
+                .containsExactly(
+                        "5Kx7aEwMbPage0009",
+                        "5Kx7aEwMbPage0008",
+                        "5Kx7aEwMbPage0007");
     }
 
     @Test
@@ -196,7 +201,16 @@ class CopyTransactionRepositoryIntegrationTest {
         var result = repository.findAll(10, 3, null);
 
         // then
-        assertThat(result).hasSize(7);
+        assertThat(result)
+                .extracting(tx -> tx.signature().value())
+                .containsExactly(
+                        "5Kx7aEwMbPage0006",
+                        "5Kx7aEwMbPage0005",
+                        "5Kx7aEwMbPage0004",
+                        "5Kx7aEwMbPage0003",
+                        "5Kx7aEwMbPage0002",
+                        "5Kx7aEwMbPage0001",
+                        "5Kx7aEwMbPage0000");
     }
 
     @Test

@@ -40,13 +40,13 @@ public class CopyTransactionRepository implements TransactionRepository {
             "SELECT signature, slot, success, created_at FROM transactions WHERE signature = ?";
 
     private static final String FIND_BY_SLOT_SQL =
-            "SELECT signature, slot, success, created_at FROM transactions WHERE slot = ? ORDER BY created_at ASC";
+            "SELECT signature, slot, success, created_at FROM transactions WHERE slot = ? ORDER BY created_at ASC, signature ASC";
 
     private static final String FIND_ALL_SQL =
-            "SELECT signature, slot, success, created_at FROM transactions ORDER BY created_at DESC LIMIT ? OFFSET ?";
+            "SELECT signature, slot, success, created_at FROM transactions ORDER BY created_at DESC, signature DESC LIMIT ? OFFSET ?";
 
     private static final String FIND_ALL_BY_SUCCESS_SQL =
-            "SELECT signature, slot, success, created_at FROM transactions WHERE success = ? ORDER BY created_at DESC LIMIT ? OFFSET ?";
+            "SELECT signature, slot, success, created_at FROM transactions WHERE success = ? ORDER BY created_at DESC, signature DESC LIMIT ? OFFSET ?";
 
     private static final String COUNT_ALL_SQL = "SELECT COUNT(*) FROM transactions";
 
