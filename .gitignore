@@ -9,3 +9,4 @@ out/
 benchmark.log
 .DS_Store
 .claude/
+docs/review-notes/
