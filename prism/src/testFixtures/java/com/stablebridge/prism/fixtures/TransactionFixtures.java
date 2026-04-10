@@ -1,5 +1,7 @@
 package com.stablebridge.prism.fixtures;
 
+import java.util.UUID;
+
 import com.stablebridge.prism.domain.model.FailedTransaction;
 import com.stablebridge.prism.domain.model.LargeTransfer;
 import com.stablebridge.prism.domain.model.Memo;
@@ -11,7 +13,7 @@ public final class TransactionFixtures {
 
     public static SolanaTransaction.SolanaTransactionBuilder transactionBuilder() {
         return SolanaTransaction.builder()
-                .signature("5Kx7aEwMbTestSignature01")
+                .signature("5Kx7aEwMb" + UUID.randomUUID().toString().substring(0, 8))
                 .slot(280_000_000L)
                 .amount(0.5)
                 .failed(false)

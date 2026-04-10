@@ -63,15 +63,18 @@ class SolanaTransactionTest {
 
     @Test
     void shouldAllowNullableFields() {
-        // given / when
-        var result = transactionBuilder()
+        // given
+        var original = SOME_TRANSACTION;
+
+        // when
+        var result = original.toBuilder()
                 .memo(null)
                 .from(null)
                 .to(null)
                 .build();
 
         // then
-        var expected = transactionBuilder()
+        var expected = original.toBuilder()
                 .memo(null)
                 .from(null)
                 .to(null)
