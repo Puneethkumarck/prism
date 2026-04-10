@@ -2,6 +2,7 @@ package com.stablebridge.prism.domain.model;
 
 import static com.stablebridge.prism.fixtures.StatsFixtures.batchResultBuilder;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -39,5 +40,37 @@ class BatchResultTest {
 
         // then
         assertThat(copy).usingRecursiveComparison().isEqualTo(original);
+    }
+
+    @Test
+    void shouldRejectNegativeWritten() {
+        // when/then
+        assertThatThrownBy(() -> batchResultBuilder().written(-1).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("written");
+    }
+
+    @Test
+    void shouldRejectNegativeFailed() {
+        // when/then
+        assertThatThrownBy(() -> batchResultBuilder().failed(-1).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("failed");
+    }
+
+    @Test
+    void shouldRejectNegativeMemos() {
+        // when/then
+        assertThatThrownBy(() -> batchResultBuilder().memos(-1).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("memos");
+    }
+
+    @Test
+    void shouldRejectNegativeTransfers() {
+        // when/then
+        assertThatThrownBy(() -> batchResultBuilder().transfers(-1).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("transfers");
     }
 }
