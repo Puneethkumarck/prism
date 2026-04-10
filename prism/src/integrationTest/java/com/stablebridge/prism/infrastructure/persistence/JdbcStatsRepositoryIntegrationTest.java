@@ -4,35 +4,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import javax.sql.DataSource;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
-import com.stablebridge.prism.testutil.TestDataSourceFactory;
+import com.stablebridge.prism.testutil.SharedPostgresContainer;
 
 class JdbcStatsRepositoryIntegrationTest {
 
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     static DataSource writePool;
     static DataSource readPool;
     static JdbcStatsRepository repository;
 
     @BeforeAll
     static void setUp() {
-        postgres.start();
-        writePool = TestDataSourceFactory.create(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword(), false);
-        readPool = TestDataSourceFactory.create(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword(), true);
-        FlywayMigrator.migrate(writePool);
+        writePool = SharedPostgresContainer.writePool();
+        readPool = SharedPostgresContainer.readPool();
         repository = new JdbcStatsRepository(readPool);
-    }
-
-    @AfterAll
-    static void tearDown() {
-        postgres.stop();
     }
 
     @BeforeEach

@@ -9,37 +9,25 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 import javax.sql.DataSource;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 import com.stablebridge.prism.domain.model.LargeTransfer;
 import com.stablebridge.prism.domain.model.Signature;
-import com.stablebridge.prism.testutil.TestDataSourceFactory;
+import com.stablebridge.prism.testutil.SharedPostgresContainer;
 
 class JdbcTransferRepositoryIntegrationTest {
 
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     static DataSource writePool;
     static DataSource readPool;
     static JdbcTransferRepository repository;
 
     @BeforeAll
     static void setUp() {
-        postgres.start();
-        writePool = TestDataSourceFactory.create(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword(), false);
-        readPool = TestDataSourceFactory.create(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword(), true);
-        FlywayMigrator.migrate(writePool);
+        writePool = SharedPostgresContainer.writePool();
+        readPool = SharedPostgresContainer.readPool();
         repository = new JdbcTransferRepository(writePool, readPool);
-    }
-
-    @AfterAll
-    static void tearDown() {
-        postgres.stop();
     }
 
     @BeforeEach
