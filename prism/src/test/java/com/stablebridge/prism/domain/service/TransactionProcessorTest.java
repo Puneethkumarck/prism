@@ -37,14 +37,17 @@ class TransactionProcessorTest {
         // given
         var tx1 = transactionBuilder().signature(new Signature("5Kx7aEwMbSuccessSig001")).build();
         var tx2 = transactionBuilder().signature(new Signature("5Kx7aEwMbSuccessSig002")).build();
-        var tx3 = transactionBuilder().signature(new Signature("5Kx7aEwMbSuccessSig003")).build();
-        var batch = List.of(tx1, tx2, tx3);
+        var txFailed = transactionBuilder()
+                .signature(new Signature("5Kx7aEwMbSuccessFail001"))
+                .failed(true)
+                .build();
+        var batch = List.of(tx1, tx2, txFailed);
 
         // when
         processor.process(batch);
 
         // then
-        then(transactionRepository).should().bulkInsert(batch);
+        then(transactionRepository).should().bulkInsert(List.of(tx1, tx2));
     }
 
     @Test
@@ -172,7 +175,7 @@ class TransactionProcessorTest {
 
         // then
         var expectedResult = BatchResult.builder()
-                .written(4)
+                .written(3)
                 .failed(1)
                 .memos(1)
                 .transfers(1)
@@ -203,7 +206,7 @@ class TransactionProcessorTest {
 
         // then
         var expected = BatchResult.builder()
-                .written(4)
+                .written(3)
                 .failed(1)
                 .memos(1)
                 .transfers(1)

@@ -26,6 +26,8 @@ public class TransactionProcessor {
     private final MetricsRecorder metricsRecorder;
 
     public BatchResult process(List<SolanaTransaction> batch) {
+        var successful = batch.stream().filter(tx -> !tx.failed()).toList();
+
         var failedTxs = batch.stream()
                 .filter(SolanaTransaction::failed)
                 .map(tx -> tx.toFailedTransaction("Transaction failed"))
@@ -42,7 +44,7 @@ public class TransactionProcessor {
                 .toList();
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var f1 = executor.submit(() -> transactionRepository.bulkInsert(batch));
+            var f1 = executor.submit(() -> transactionRepository.bulkInsert(successful));
             var f2 = executor.submit(() -> failedTransactionRepository.bulkInsert(failedTxs));
             var f3 = executor.submit(() -> memoRepository.bulkInsert(memos));
             var f4 = executor.submit(() -> transferRepository.bulkInsert(transfers));
@@ -54,11 +56,11 @@ public class TransactionProcessor {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Batch processing interrupted", e);
         } catch (ExecutionException e) {
-            throw new RuntimeException("Batch processing failed", e);
+            throw new RuntimeException("Batch processing failed", e.getCause());
         }
 
         var result = BatchResult.builder()
-                .written(batch.size())
+                .written(successful.size())
                 .failed(failedTxs.size())
                 .memos(memos.size())
                 .transfers(transfers.size())
