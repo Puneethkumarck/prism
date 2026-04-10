@@ -1,5 +1,7 @@
 package com.stablebridge.prism.infrastructure.persistence;
 
+import java.util.Objects;
+
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -15,6 +17,7 @@ public final class DataSourceFactory {
     private static final long IDLE_TIMEOUT = 60_000;
 
     public static HikariDataSource createWritePool(String jdbcUrl) {
+        Objects.requireNonNull(jdbcUrl, "jdbcUrl must not be null");
         var config = new HikariConfig();
         config.setJdbcUrl(appendReWriteBatchedInserts(jdbcUrl));
         config.setMaximumPoolSize(MAX_POOL_SIZE);
@@ -26,6 +29,7 @@ public final class DataSourceFactory {
     }
 
     public static HikariDataSource createReadPool(String jdbcUrl) {
+        Objects.requireNonNull(jdbcUrl, "jdbcUrl must not be null");
         var config = new HikariConfig();
         config.setJdbcUrl(jdbcUrl);
         config.setMaximumPoolSize(MAX_POOL_SIZE);

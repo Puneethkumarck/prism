@@ -85,6 +85,17 @@ class DataSourceFactoryIntegrationTest {
     }
 
     @Test
+    void shouldHaveReadOnlyEnabledOnReadPool() throws SQLException {
+        // given
+        // when
+        try (var conn = readPool.getConnection()) {
+
+            // then
+            assertThat(conn.isReadOnly()).isTrue();
+        }
+    }
+
+    @Test
     void shouldHaveReWriteBatchedInsertsEnabled() throws SQLException {
         // given
         // when
