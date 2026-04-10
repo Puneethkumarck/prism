@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: indexer
+      POSTGRES_PASSWORD: indexer
+      POSTGRES_DB: indexer
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indexer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafanadata:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+  app:
+    image: stablebridge/prism:latest
+    profiles:
+      - app
+    ports:
+      - "${API_PORT:-3000}:3000"
+      - "9090:9090"
+    environment:
+      STREAM_MODE: ${STREAM_MODE:-websocket}
+      RPC_WS_ENDPOINT: ${RPC_WS_ENDPOINT:-wss://api.mainnet-beta.solana.com}
+      GRPC_ENDPOINT: ${GRPC_ENDPOINT:-}
+      X_TOKEN: ${X_TOKEN:-}
+      DATABASE_URL: postgresql://indexer:indexer@postgres:5432/indexer
+      API_PORT: "3000"
+      CONSOLE_LOG: ${CONSOLE_LOG:-true}
+      BENCH_LOG: ${BENCH_LOG:-benchmark.log}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  promdata:
+  grafanadata:

@@ -1,4 +1,4 @@
-.PHONY: build test integration-test clean format run infra-up infra-down infra-clean docker-build up down help
+.PHONY: build test integration-test clean format run infra-up infra-down infra-clean infra-status infra-logs docker-build up down help
 
 build: ## Compile + Spotless + unit + integration + ArchUnit
 	./gradlew build
@@ -26,6 +26,12 @@ infra-down: ## Stop infrastructure
 
 infra-clean: ## Stop infrastructure and remove volumes
 	docker compose down -v
+
+infra-status: ## Show infrastructure container status
+	docker compose ps
+
+infra-logs: ## Tail infrastructure logs
+	docker compose logs -f postgres prometheus grafana
 
 docker-build: ## Build Docker image via Jib
 	./gradlew :prism:jibDockerBuild
