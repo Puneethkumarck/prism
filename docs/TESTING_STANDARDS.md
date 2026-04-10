@@ -15,7 +15,8 @@
 - [7. Integration Test Setup](#7-integration-test-setup)
 - [8. Architecture Test](#8-architecture-test)
 - [9. Test Utilities](#9-test-utilities)
-- [10. Anti-Patterns Summary](#10-anti-patterns-summary)
+- [10. Asynchronous Test Assertions (Awaitility)](#10-asynchronous-test-assertions-awaitility)
+- [11. Anti-Patterns Summary](#11-anti-patterns-summary)
 
 ---
 
@@ -543,7 +544,69 @@ public final class TestDataSourceFactory {
 
 ---
 
-## 10. Anti-Patterns Summary
+## 10. Asynchronous Test Assertions (Awaitility)
+
+**MANDATORY — use Awaitility for all async/concurrent test assertions. `Thread.sleep` is FORBIDDEN.**
+
+### Why
+
+- `Thread.sleep` introduces arbitrary delays that are either too short (flaky) or too long (slow CI)
+- Awaitility polls until the condition passes, making tests both faster and more reliable
+- Virtual thread workloads are inherently async — sleeping provides no ordering guarantee
+
+### Library
+
+```xml
+<!-- Gradle (version catalog) -->
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+```
+
+### Pattern: Waiting for a Side Effect
+
+```java
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+
+@Test
+void shouldFlushOnBatchSize() {
+    // given
+    fillQueue(200);
+    var thread = Thread.ofVirtual().start(service::run);
+
+    // when/then
+    await().atMost(5, SECONDS).untilAsserted(() -> {
+        then(repository).should(atLeastOnce()).batchUpsert(captor.capture());
+        var flushed = captor.getAllValues().stream().flatMap(List::stream).toList();
+        assertThat(flushed).hasSize(200);
+    });
+}
+```
+
+### Pattern: Asserting Something Does NOT Happen
+
+```java
+@Test
+void shouldNotFlushEmptyBatch() {
+    // given
+    var thread = Thread.ofVirtual().start(service::run);
+
+    // when/then — verify no interaction persists for the full duration
+    await().during(3, SECONDS).atMost(5, SECONDS).untilAsserted(() ->
+        then(repository).shouldHaveNoInteractions()
+    );
+}
+```
+
+### Rules
+
+- Always set an explicit `atMost()` timeout — never rely on Awaitility defaults
+- Use `untilAsserted()` for BDDMockito verifications and AssertJ assertions
+- Use `during()` + `atMost()` when asserting a condition holds continuously (negative assertions)
+- Keep `atMost()` generous enough for CI (5s typical), Awaitility will return as soon as the condition passes
+
+---
+
+## 11. Anti-Patterns Summary
 
 | FORBIDDEN | REQUIRED |
 |-----------|----------|
@@ -556,4 +619,5 @@ public final class TestDataSourceFactory {
 | `@SpringBootTest` | Testcontainers + direct JDBC (no Spring context) |
 | `@MockBean` / `@SpyBean` | `@Mock` / `@Spy` with `@ExtendWith(MockitoExtension.class)` |
 | `synchronized` in production code under test | `ReentrantLock` (VT-safe) |
+| `Thread.sleep` in tests | Awaitility `await().atMost().untilAsserted()` |
 | Tests without `// given`, `// when`, `// then` comments | Always include section markers |

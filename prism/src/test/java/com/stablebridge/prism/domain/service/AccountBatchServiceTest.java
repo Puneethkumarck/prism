@@ -1,12 +1,15 @@
 package com.stablebridge.prism.domain.service;
 
 import static com.stablebridge.prism.fixtures.AccountFixtures.accountBuilder;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.BDDMockito.atLeastOnce;
 import static org.mockito.BDDMockito.then;
 
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,14 +39,23 @@ class AccountBatchServiceTest {
     private ArgumentCaptor<Integer> metricsCaptor;
 
     private AccountBatchService service;
+    private Thread serviceThread;
 
     @BeforeEach
     void setUp() {
         service = new AccountBatchService(accountRepository, metricsRecorder);
     }
 
+    @AfterEach
+    void tearDown() throws InterruptedException {
+        service.close();
+        if (serviceThread != null) {
+            serviceThread.join(5000);
+        }
+    }
+
     @Test
-    void shouldFlushOnBatchSize() throws InterruptedException {
+    void shouldFlushOnBatchSize() {
         // given
         for (var i = 0; i < 200; i++) {
             service.offer(
@@ -53,23 +65,23 @@ class AccountBatchServiceTest {
         }
 
         // when
-        var thread = Thread.ofVirtual().start(service::run);
-        Thread.sleep(500);
-        service.close();
-        thread.join(5000);
+        serviceThread = Thread.ofVirtual().start(service::run);
 
         // then
-        then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
-        var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
-        assertThat(flushed).hasSize(200);
-        then(metricsRecorder).should(atLeastOnce()).recordAccountsWritten(metricsCaptor.capture());
-        var totalRecorded = metricsCaptor.getAllValues().stream().mapToInt(Integer::intValue).sum();
-        assertThat(totalRecorded).isEqualTo(200);
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
+            var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
+            assertThat(flushed).hasSize(200);
+            then(metricsRecorder).should(atLeastOnce()).recordAccountsWritten(metricsCaptor.capture());
+            var totalRecorded = metricsCaptor.getAllValues().stream().mapToInt(Integer::intValue).sum();
+            assertThat(totalRecorded).isEqualTo(200);
+        });
     }
 
     @Test
-    void shouldFlushOnTimeout() throws InterruptedException {
+    void shouldFlushOnTimeout() {
         // given
+        serviceThread = Thread.ofVirtual().start(service::run);
         for (var i = 0; i < 50; i++) {
             service.offer(
                     accountBuilder()
@@ -77,20 +89,16 @@ class AccountBatchServiceTest {
                             .build());
         }
 
-        // when
-        var thread = Thread.ofVirtual().start(service::run);
-        Thread.sleep(3000);
-        service.close();
-        thread.join(5000);
-
-        // then
-        then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
-        var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
-        assertThat(flushed).hasSize(50);
+        // when/then
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
+            var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
+            assertThat(flushed).hasSize(50);
+        });
     }
 
     @Test
-    void shouldDeduplicateByPubkeyKeepingHighestSlot() throws InterruptedException {
+    void shouldDeduplicateByPubkeyKeepingHighestSlot() {
         // given
         var sharedPubkey = new Pubkey("7xKXtg2CDedupPubkey0001");
         service.offer(accountBuilder().pubkey(sharedPubkey).slot(100L).build());
@@ -98,17 +106,16 @@ class AccountBatchServiceTest {
         service.offer(accountBuilder().pubkey(sharedPubkey).slot(200L).build());
 
         // when
-        var thread = Thread.ofVirtual().start(service::run);
-        Thread.sleep(3000);
-        service.close();
-        thread.join(5000);
+        serviceThread = Thread.ofVirtual().start(service::run);
 
         // then
-        then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
-        var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
-        assertThat(flushed).hasSize(1);
-        var expected = accountBuilder().pubkey(sharedPubkey).slot(300L).build();
-        assertThat(flushed.getFirst()).usingRecursiveComparison().isEqualTo(expected);
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
+            var flushed = accountsCaptor.getAllValues().stream().flatMap(List::stream).toList();
+            assertThat(flushed).hasSize(1);
+            var expected = accountBuilder().pubkey(sharedPubkey).slot(300L).build();
+            assertThat(flushed.getFirst()).usingRecursiveComparison().isEqualTo(expected);
+        });
     }
 
     @Test
@@ -144,8 +151,8 @@ class AccountBatchServiceTest {
 
         // when
         service.close();
-        var thread = Thread.ofVirtual().start(service::run);
-        thread.join(5000);
+        serviceThread = Thread.ofVirtual().start(service::run);
+        serviceThread.join(5000);
 
         // then
         then(accountRepository).should(atLeastOnce()).batchUpsert(accountsCaptor.capture());
@@ -154,16 +161,14 @@ class AccountBatchServiceTest {
     }
 
     @Test
-    void shouldNotFlushEmptyBatch() throws InterruptedException {
+    void shouldNotFlushEmptyBatch() {
         // given
-        var thread = Thread.ofVirtual().start(service::run);
+        serviceThread = Thread.ofVirtual().start(service::run);
 
         // when
-        Thread.sleep(300);
-        service.close();
-        thread.join(5000);
-
-        // then
-        then(accountRepository).shouldHaveNoInteractions();
+        await().during(3, SECONDS).atMost(5, SECONDS).untilAsserted(() ->
+            // then
+            then(accountRepository).shouldHaveNoInteractions()
+        );
     }
 }
