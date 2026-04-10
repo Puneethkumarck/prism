@@ -66,6 +66,87 @@ com.stablebridge.prism
 
 ## 3. Domain Layer
 
+### 3.0 DDD Classification Guide
+
+When introducing a new type, ask these three questions in order:
+
+| # | Question | If YES | Example |
+|---|----------|--------|---------|
+| 1 | Can I swap two instances with the same fields and nothing breaks? | **Value Object** | `Signature`, `Pubkey`, `Slot` |
+| 2 | Does it have its own table, own queries, own lifecycle? | **Aggregate Root** | `SolanaTransaction`, `Account` |
+| 3 | Is it always derived from or owned by another entity? | **Projection / Child** | `LargeTransfer`, `Memo`, `FailedTransaction` |
+
+#### Value Objects
+
+A value object is defined entirely by its fields. Two instances with the same fields are interchangeable.
+
+**When to wrap a primitive in a value object:**
+- Two types share the same underlying primitive but mean different things (e.g., `Signature` and `Pubkey` are both `String` — wrapping prevents mixing them at compile time)
+- The value has invariants that should be enforced once (e.g., max length, non-blank)
+
+**When NOT to wrap:**
+- There is no confusion risk (e.g., `BigDecimal` for amounts — no other `BigDecimal` in the domain to confuse it with)
+- The type is only used in one place and wrapping adds friction without safety
+
+**Implementation rules:**
+- Single-field records, no `@Builder`
+- Compact constructor validates invariants (non-null, non-blank, max length)
+- Java records provide `equals`/`hashCode` by value automatically
+- Use as map keys, set elements, and method parameters where type safety matters
+
+#### Entities (Aggregate Roots)
+
+An entity has identity and lifecycle. Two entities with identical fields are different objects if they have different identities.
+
+**How to identify:**
+- Has a unique identifier (signature, pubkey) assigned externally (by the blockchain, not by the application)
+- Stored in its own database table
+- Queried directly via its own repository port
+- Other aggregates reference it by ID, not by direct object reference
+
+**Implementation rules:**
+- Java records with `@Builder(toBuilder = true)`
+- Compact constructor validates required fields and invariants
+- Contains factory methods for derived projections (`toLargeTransfer()`, `toMemo()`)
+- One repository port per aggregate root
+
+#### Projections (Child Entities)
+
+A projection is derived from an aggregate root and does not exist independently.
+
+**How to identify:**
+- Created from a parent entity's fields (never from scratch)
+- Does not have its own independent lifecycle — if the parent didn't exist, neither would the projection
+- May have its own table for query performance, but the source of truth is the parent
+
+**Implementation rules:**
+- Java records with `@Builder(toBuilder = true)`
+- Created via factory methods on the aggregate root (`tx.toLargeTransfer()`)
+- Share the parent's identity field (same `Signature`)
+- Never created directly in services — always derived from the aggregate root
+
+#### Decision Tree
+
+```
+New type arrives
+    │
+    ├── "Is it identified by value alone?"
+    │       │
+    │      YES → VALUE OBJECT
+    │              No @Builder, compact constructor validation
+    │              Examples: Signature, Pubkey, Slot
+    │
+    └── "Does it have independent lifecycle?"
+            │
+           YES → AGGREGATE ROOT
+           │      @Builder, own repository port, factory methods for projections
+           │      Examples: SolanaTransaction, Account
+           │
+            NO → PROJECTION
+                   @Builder, created via aggregate root factory method
+                   Examples: LargeTransfer, Memo, FailedTransaction
+```
+
 ### 3.1 Domain Models
 
 Use **Java records** with `@Builder(toBuilder = true)` for all domain models. Positional constructors are NOT acceptable for records with 3+ fields — callers must use named builder fields.
