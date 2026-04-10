@@ -53,6 +53,7 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.awaitility)
     testImplementation(libs.archunit.junit5)
 
     testFixturesImplementation(platform(libs.testcontainers.bom))

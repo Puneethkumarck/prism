@@ -12,6 +12,7 @@ archunit = "1.4.1"
 testcontainers = "1.21.3"
 mockito = "5.18.0"
 assertj = "3.27.3"
+awaitility = "4.3.0"
 protobuf = "4.31.1"
 lombok = "1.18.38"
 logback = "1.5.32"
@@ -65,6 +66,8 @@ mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
 
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
 
