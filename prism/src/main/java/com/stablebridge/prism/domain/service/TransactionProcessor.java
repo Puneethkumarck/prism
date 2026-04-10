@@ -14,9 +14,7 @@ import com.stablebridge.prism.domain.port.TransactionRepository;
 import com.stablebridge.prism.domain.port.TransferRepository;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @RequiredArgsConstructor
 public class TransactionProcessor {
 
@@ -67,11 +65,7 @@ public class TransactionProcessor {
                 .transfers(transfers.size())
                 .build();
 
-        try {
-            metricsRecorder.recordBatch(result);
-        } catch (RuntimeException e) {
-            log.warn("Failed to record batch metrics", e);
-        }
+        metricsRecorder.recordBatch(result);
 
         return result;
     }
