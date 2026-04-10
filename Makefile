@@ -1,4 +1,4 @@
-.PHONY: build test integration-test clean format run infra-up infra-down infra-clean infra-status infra-logs docker-build up down help
+.PHONY: build test integration-test clean format run infra-up infra-down infra-clean infra-status infra-logs docker-build up down setup-hooks lint help
 
 build: ## Compile + Spotless + unit + integration + ArchUnit
 	./gradlew build
@@ -41,6 +41,13 @@ up: ## Start all services (infra + app)
 
 down: ## Stop all services
 	docker compose down
+
+setup-hooks: ## Configure git to use .githooks directory
+	git config core.hooksPath .githooks
+
+lint: ## Run Spotless + ArchUnit (same as pre-commit hook)
+	./gradlew spotlessCheck
+	./gradlew test --tests '*.ArchitectureTest'
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

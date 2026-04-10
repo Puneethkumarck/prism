@@ -8,3 +8,4 @@ out/
 *.log
 benchmark.log
 .DS_Store
+.claude/
