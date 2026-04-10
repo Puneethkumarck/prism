@@ -1,0 +1,566 @@
+# Coding Standards — Prism (Solana Real-Time Indexer)
+
+> Instructions for coding agents developing Prism.
+> Stack: Java 25, Helidon 4 SE, Avaje Inject, pgjdbc, PostgreSQL 16 — **NO Spring Boot**.
+
+## Table of Contents
+
+- [1. Architecture: Hexagonal (Ports and Adapters)](#1-architecture-hexagonal-ports-and-adapters)
+- [2. Multi-Module Gradle Structure](#2-multi-module-gradle-structure)
+- [3. Domain Layer](#3-domain-layer)
+- [4. Application Layer](#4-application-layer)
+- [5. Infrastructure Layer](#5-infrastructure-layer)
+- [6. Object Mapping](#6-object-mapping)
+- [7. Java Conventions](#7-java-conventions)
+- [8. Concurrency and Virtual Threads](#8-concurrency-and-virtual-threads)
+- [9. API Design](#9-api-design)
+- [10. Quick Reference Checklist](#10-quick-reference-checklist)
+
+---
+
+## 1. Architecture: Hexagonal (Ports and Adapters)
+
+Every module follows a strict three-layer package structure under `com.stablebridge.prism`:
+
+```
+com.stablebridge.prism
+  ├── domain/           # Core business logic, models, ports, services
+  ├── application/      # Input adapters: Helidon SE routes, lifecycle, config
+  └── infrastructure/   # Output adapters: JDBC, gRPC, WebSocket, metrics
+```
+
+**Rules:**
+- `domain` MUST NOT import from `application` or `infrastructure`
+- `domain` models (records, value objects, enums) MUST NOT import any framework. Only Lombok + `java.*` allowed
+- `domain` services use Lombok for DI (`@RequiredArgsConstructor`) — no framework annotations for DI registration
+- `application` depends on `domain`. Maps API DTOs to domain models and delegates
+- `infrastructure` depends on `domain`. Implements domain port interfaces
+- Dependencies always point inward: `application` → `domain` ← `infrastructure`
+
+**Enforced by ArchUnit** (5 rules, build-time):
+
+| # | Rule |
+|---|------|
+| 1 | `domain..` must NOT depend on `infrastructure..` |
+| 2 | `domain..` must NOT depend on `application..` |
+| 3 | `domain..` must NOT import `io.helidon..`, `jakarta..`, `io.avaje..` |
+| 4 | `domain..` must NOT import `java.sql..` |
+| 5 | `infrastructure..` must NOT depend on `application.routing..` |
+
+---
+
+## 2. Multi-Module Gradle Structure
+
+| Module | Purpose | Plugin |
+|--------|---------|--------|
+| `prism-api` | Shared DTOs: response records, Page\<T\>, ErrorResponse | `prism.library` (java-library) |
+| `prism` | Main application: domain, application, infrastructure | `prism.service` (Helidon 4 SE) |
+
+**Dependency rules:**
+- `prism-api` has no dependency on the core module
+- `prism` depends on `prism-api` via `implementation`
+- Convention plugins live in `buildSrc/`
+- Dependencies managed via `gradle/libs.versions.toml`
+
+---
+
+## 3. Domain Layer
+
+### 3.1 Domain Models
+
+Use **Java records** with `@Builder(toBuilder = true)` for all domain models. Positional constructors are NOT acceptable for records with 3+ fields — callers must use named builder fields.
+
+```java
+@Builder(toBuilder = true)
+public record SolanaTransaction(
+        String signature,
+        long slot,
+        double amount,
+        boolean failed,
+        String memo,
+        String from,
+        String to
+) {}
+
+@Builder(toBuilder = true)
+public record Account(
+        String pubkey,
+        long lamports,
+        long slot,
+        boolean executable,
+        long rentEpoch
+) {}
+
+@Builder(toBuilder = true)
+public record BatchResult(long written, long failed, long memos, long transfers) {}
+```
+
+**Rules:**
+- Domain models are immutable. State transitions return new instances (via `toBuilder()`)
+- Records MUST have `@Builder(toBuilder = true)` — exception: trivial 1-2 field records
+- No JDBC annotations (`java.sql.*`) in domain models — stays in infrastructure
+- No framework annotations. Only Lombok (`@Builder`, `@Slf4j`, `@RequiredArgsConstructor`)
+- Use `@Slf4j` on all classes with logging (domain services, not records)
+
+### 3.2 Domain Ports
+
+Define interfaces in the domain layer. Infrastructure provides implementations.
+
+```java
+// domain/port/TransactionRepository.java — plain interface, no annotations
+public interface TransactionRepository {
+    void bulkInsert(List<SolanaTransaction> batch);
+    Optional<SolanaTransaction> findBySignature(String signature);
+    List<SolanaTransaction> findBySlot(long slot);
+    List<SolanaTransaction> findAll(long limit, long offset, Boolean success);
+    long countAll();
+    long countBySuccess(boolean success);
+}
+
+// domain/port/TransactionStream.java
+public interface TransactionStream {
+    void subscribe(Consumer<SolanaTransaction> txConsumer, Consumer<Account> acctConsumer);
+    void close();
+}
+```
+
+**Rules:**
+- Plain interfaces, no annotations
+- Only domain model types in method signatures — no `DataSource`, `Connection`, `JsonNode`, `Channel`
+- Return `Optional` for lookups that may not find a result
+- Use `List` for collection returns, `void` for writes
+
+### 3.3 Domain Services
+
+Services orchestrate domain logic. They use Lombok for DI — no `@Service`, `@Component`, or `@Singleton` on domain classes.
+
+```java
+@Slf4j
+@RequiredArgsConstructor
+public class TransactionProcessor {
+    private final TransactionRepository transactionRepository;
+    private final FailedTransactionRepository failedTransactionRepository;
+    private final TransferRepository transferRepository;
+    private final MemoRepository memoRepository;
+    private final MetricsRecorder metricsRecorder;
+
+    public BatchResult process(List<SolanaTransaction> batch) {
+        // Classify and route to repos in parallel via virtual threads
+    }
+}
+```
+
+**DI registration** happens in the application layer (via Avaje `@Singleton` factories or manual wiring in `main()`), NOT in the domain layer.
+
+### 3.4 Error Handling
+
+- Define domain-specific exceptions extending `RuntimeException`
+- Use descriptive messages
+- Each exception type maps to a specific HTTP status in the application layer's `ErrorHandler`
+
+```java
+public class TransactionNotFoundException extends RuntimeException {
+    public TransactionNotFoundException(String signature) {
+        super("Transaction not found: " + signature);
+    }
+}
+```
+
+---
+
+## 4. Application Layer
+
+### 4.1 Helidon SE Routes
+
+Routes use Helidon 4 SE functional `HttpService` pattern — no annotations, no controllers.
+
+```java
+@Slf4j
+@RequiredArgsConstructor
+public class TransactionRoutes implements HttpService {
+    private final TransactionRepository transactionRepository;
+    private final TransactionResponseMapper mapper;
+
+    @Override
+    public void routing(HttpRules rules) {
+        rules.get("/", this::listTransactions)
+             .get("/{signature}", this::getBySignature);
+    }
+
+    private void listTransactions(ServerRequest req, ServerResponse res) {
+        var limit = Math.max(1, Math.min(req.query().first("limit").map(Long::parseLong).orElse(50L), 500));
+        var offset = req.query().first("offset").map(Long::parseLong).orElse(0L);
+        var success = req.query().first("success").map(Boolean::parseBoolean).orElse(null);
+
+        var data = transactionRepository.findAll(limit, offset, success);
+        var total = success != null ? transactionRepository.countBySuccess(success) : transactionRepository.countAll();
+        var page = Page.<TransactionResponse>builder()
+                .data(data.stream().map(mapper::toResponse).toList())
+                .total(total).limit(limit).offset(offset).build();
+        res.send(page);
+    }
+}
+```
+
+**Rules:**
+- Routes are thin — mapping + delegation only. No business logic
+- Limit clamping: `Math.max(1, Math.min(limit, 500))`
+- Use `Optional` pipelines for query parameter extraction
+- Return domain exceptions — `ErrorHandler` maps them to HTTP status
+
+### 4.2 Configuration
+
+Use a plain Java record parsed from environment variables — no `@ConfigurationProperties`:
+
+```java
+@Builder(toBuilder = true)
+public record IndexerConfig(
+        String streamMode,
+        String grpcEndpoint,
+        String rpcWsEndpoint,
+        String databaseUrl,
+        String xToken,
+        boolean consoleLog,
+        String benchLog,
+        int apiPort
+) {
+    public static IndexerConfig fromEnv() {
+        var databaseUrl = requireEnv("DATABASE_URL");
+        var streamMode = env("STREAM_MODE", "websocket");
+        // Fail fast if required vars missing for selected mode
+        if ("grpc".equals(streamMode)) requireEnv("GRPC_ENDPOINT");
+        return IndexerConfig.builder()
+                .streamMode(streamMode)
+                .grpcEndpoint(env("GRPC_ENDPOINT", ""))
+                .rpcWsEndpoint(env("RPC_WS_ENDPOINT", "wss://api.mainnet-beta.solana.com"))
+                .databaseUrl(databaseUrl)
+                .xToken(env("X_TOKEN", null))
+                .consoleLog(!"false".equals(env("CONSOLE_LOG", "true")))
+                .benchLog(env("BENCH_LOG", "benchmark.log"))
+                .apiPort(Integer.parseInt(env("API_PORT", "3000")))
+                .build();
+    }
+
+    private static String env(String key, String defaultValue) {
+        return Optional.ofNullable(System.getenv(key)).orElse(defaultValue);
+    }
+
+    private static String requireEnv(String key) {
+        return Optional.ofNullable(System.getenv(key))
+                .orElseThrow(() -> new IllegalStateException(key + " environment variable is required"));
+    }
+}
+```
+
+### 4.3 Application Lifecycle
+
+The `main()` method wires everything explicitly — no framework auto-configuration:
+
+```java
+public class IndexerApplication {
+    public static void main(String[] args) {
+        var config = IndexerConfig.fromEnv();
+        var writePool = DataSourceFactory.createWritePool(config.databaseUrl());
+        var readPool = DataSourceFactory.createReadPool(config.databaseUrl());
+        FlywayMigrator.migrate(writePool);
+        // Create repos, services, routes, start Helidon WebServer
+        // Register shutdown hook
+    }
+}
+```
+
+---
+
+## 5. Infrastructure Layer
+
+### 5.1 Database (Raw JDBC)
+
+**No JPA. No ORM.** All database access uses raw pgjdbc with parameterized SQL.
+
+```java
+@Slf4j
+@RequiredArgsConstructor
+public class CopyTransactionRepository implements TransactionRepository {
+    private final DataSource writePool;
+    private final DataSource readPool;
+
+    @Override
+    public void bulkInsert(List<SolanaTransaction> batch) {
+        var successful = batch.stream().filter(tx -> !tx.failed()).toList();
+        if (successful.isEmpty()) return;
+        try (var conn = writePool.getConnection()) {
+            var pgConn = conn.unwrap(PgConnection.class);
+            var tsv = buildTsv(successful);  // signature\tslot\tt\n
+            pgConn.getCopyAPI().copyIn(
+                "COPY staging_transactions (signature, slot, success) FROM STDIN (FORMAT TEXT)",
+                new ByteArrayInputStream(tsv.getBytes(UTF_8)));
+            try (var stmt = conn.createStatement()) {
+                stmt.execute("INSERT INTO transactions SELECT * FROM staging_transactions ON CONFLICT (signature) DO NOTHING");
+                stmt.execute("TRUNCATE staging_transactions");
+            }
+        }
+    }
+
+    @Override
+    public Optional<SolanaTransaction> findBySignature(String signature) {
+        try (var conn = readPool.getConnection();
+             var ps = conn.prepareStatement("SELECT * FROM transactions WHERE signature = ?")) {
+            ps.setString(1, signature);
+            try (var rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
+            }
+        }
+    }
+}
+```
+
+**Rules:**
+- Use `CopyManager` for the `transactions` table (5-10x faster than INSERT)
+- Use `PreparedStatement.addBatch()` with `reWriteBatchedInserts=true` for other tables
+- Use `INSERT ... ON CONFLICT (pubkey) DO UPDATE` for accounts upsert
+- Read methods use **read pool**, write methods use **write pool**
+- All SQL is parameterized — no string concatenation
+
+### 5.2 Connection Pools
+
+Two separate HikariCP pools:
+
+| Pool | Max | Min | Acquire | Idle | Special |
+|------|-----|-----|---------|------|---------|
+| Write | 20 | 5 | 10s | 60s | `reWriteBatchedInserts=true` |
+| Read | 20 | 5 | 10s | 60s | `readOnly=true` |
+
+### 5.3 gRPC / WebSocket Adapters
+
+Two adapters implement the same `TransactionStream` port:
+
+| Adapter | Protocol | Cost | Class |
+|---------|----------|------|-------|
+| `YellowstoneTransactionStream` | Helidon gRPC client | Paid ($300-500/mo) | `infrastructure/grpc/` |
+| `WebSocketTransactionStream` | JDK `java.net.http.WebSocket` | Free (public RPC) | `infrastructure/websocket/` |
+
+Selected at startup based on `STREAM_MODE` config. Domain layer is identical for both.
+
+### 5.4 Metrics
+
+Micrometer counters exposed via Helidon's built-in `/metrics` endpoint. No Spring Actuator.
+
+---
+
+## 6. Object Mapping
+
+Use **MapStruct** with `componentModel = "jsr330"` for Avaje Inject compatibility.
+
+**Naming conventions:**
+
+| Direction | Method name |
+|-----------|-------------|
+| Domain → API response | `toResponse(domainModel)` |
+| API request → Domain | `toDomain(request)` |
+| ResultSet → Domain | `mapRow(ResultSet)` (manual in JDBC adapters) |
+
+**Rules:**
+- One mapper interface per concern
+- `@Mapper(componentModel = "jsr330")` on all mappers
+- In unit tests: `Mappers.getMapper(XxxMapper.class)` or `@Spy`
+- ResultSet → Domain mapping is manual (inside JDBC adapters) since MapStruct doesn't support ResultSet
+
+---
+
+## 7. Java Conventions
+
+### 7.1 Language Level
+
+Java 25 with modern features: `var`, records, pattern matching `switch`, text blocks, unnamed variables (`_`), sealed interfaces where appropriate.
+
+### 7.2 Lombok Usage
+
+| Annotation | Where | Purpose |
+|------------|-------|---------|
+| `@RequiredArgsConstructor` | Services, adapters, routes | Constructor injection via `private final` fields |
+| `@Slf4j` | All classes with logging | Logging via `log.info(...)` |
+| `@Builder(toBuilder = true)` | All records | Object construction + copy-and-modify |
+| `@Getter` | Enums with fields | Field access |
+
+**Never use:**
+- `@Autowired`, `@Service`, `@Component` — use Avaje `@Singleton` in infrastructure, `@RequiredArgsConstructor` in domain
+- `@Data` in production code
+- `@AllArgsConstructor` in domain models
+- Positional record constructors for 3+ fields
+
+### 7.3 Dependency Injection
+
+**Domain layer**: `@RequiredArgsConstructor` with `private final` fields. No DI annotations.
+
+**Infrastructure + Application layer**: Avaje Inject `@Singleton` for adapter classes, `@Factory` + `@Bean` for infrastructure objects (DataSource, Channel):
+
+```java
+// Infra adapter — registered with Avaje Inject
+@Singleton
+@RequiredArgsConstructor
+public class JdbcStatsRepository implements StatsRepository {
+    private final DataSource readPool;
+}
+
+// Factory for infrastructure objects
+@Factory
+public class DataSourceFactory {
+    @Bean @Named("write")
+    public HikariDataSource writePool(IndexerConfig config) { ... }
+
+    @Bean @Named("read")
+    public HikariDataSource readPool(IndexerConfig config) { ... }
+}
+```
+
+### 7.4 Null Handling
+
+- Use `Optional` for return types that may not have a value
+- Never return `null` from repository lookups — return `Optional`
+- Use `Optional.ofNullable()` when bridging nullable external data
+
+### 7.5 Naming
+
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Package | lowercase, singular | `domain.model`, `infrastructure.persistence` |
+| Class | PascalCase | `TransactionProcessor`, `CopyTransactionRepository` |
+| Interface | PascalCase, no `I` prefix | `TransactionRepository` |
+| Method | camelCase, verb-first | `findBySignature`, `bulkInsert` |
+| Constant | SCREAMING_SNAKE_CASE | `LARGE_TRANSFER_THRESHOLD_SOL`, `BATCH_SIZE` |
+| Test method | `should<Action><Condition>` | `shouldFlushWhenBatchSizeReached` |
+| Fixture constant | `SOME_*` | `SOME_TRANSACTION`, `SOME_ACCOUNT` |
+| Fixture builder | `<concept>Builder()` | `transactionBuilder()`, `accountBuilder()` |
+
+### 7.6 Import Order
+
+```java
+import static ...;         // Static imports first
+
+import com.stablebridge...; // Internal imports
+import com.other...;        // Third-party imports
+import java...;             // Java standard library
+import jakarta...;          // Jakarta imports
+import org...;              // Framework imports
+import io...;               // Helidon, Avaje, etc.
+```
+
+### 7.7 Functional Over Imperative
+
+```java
+// GOOD — functional
+var result = items.stream()
+        .filter(Item::isActive)
+        .map(Item::name)
+        .toList();
+
+// GOOD — Optional pipeline
+return repository.findBySignature(sig)
+        .map(mapper::toResponse)
+        .orElseThrow(() -> new TransactionNotFoundException(sig));
+
+// GOOD — Map.merge for dedup
+map.merge(account.pubkey(), account,
+    (prev, curr) -> curr.slot() > prev.slot() ? curr : prev);
+```
+
+**Rules:**
+- Streams over loops for transformations/filtering
+- Optional pipelines over null checks
+- `Map.merge`, `computeIfAbsent`, `getOrDefault` over get-check-put
+- Method references over lambdas when clear
+- Prefer `toList()` (returns unmodifiable list)
+- **Exception:** Imperative style OK for complex stateful iteration or side-effectful loops
+
+---
+
+## 8. Concurrency and Virtual Threads
+
+### 8.1 Virtual Threads
+
+All blocking I/O (JDBC, gRPC, WebSocket) runs on virtual threads. Java 25 makes this transparent.
+
+```java
+var executor = Executors.newVirtualThreadPerTaskExecutor();
+executor.submit(() -> transactionBatchService.run());
+executor.submit(() -> accountBatchService.run());
+```
+
+### 8.2 ReentrantLock Over synchronized
+
+**MANDATORY**: Use `ReentrantLock` everywhere. Never `synchronized`.
+
+`synchronized` blocks **pin the virtual thread's carrier thread**, destroying throughput. `ReentrantLock` does not pin.
+
+```java
+// BAD — pins carrier thread
+private synchronized void flush() { ... }
+
+// GOOD — virtual-thread safe
+private final ReentrantLock lock = new ReentrantLock();
+private void flush() {
+    lock.lock();
+    try { ... }
+    finally { lock.unlock(); }
+}
+```
+
+### 8.3 Queue Choices
+
+| Queue | Use Case | Why |
+|-------|----------|-----|
+| `LinkedTransferQueue` (unbounded) | Transaction stream → batch writer | Prevents gRPC backpressure disconnection |
+| `ArrayBlockingQueue` (bounded 10K) | Fee payer → account writer | Drop if full (`offer()` returns false) |
+
+---
+
+## 9. API Design
+
+### 9.1 Pagination
+
+All list endpoints return `Page<T>`:
+
+```json
+{"data": [...], "total": 1000, "limit": 50, "offset": 0}
+```
+
+- `limit` default 50, max 500, clamped: `Math.max(1, Math.min(limit, 500))`
+- `offset` default 0
+
+### 9.2 Error Responses
+
+Consistent JSON error body:
+
+```json
+{"error": "Transaction not found: 5Kx7a...", "status": 404}
+```
+
+### 9.3 CORS
+
+Permissive (all origins) via Helidon `CorsSupport`:
+
+```java
+CorsSupport.builder().addCrossOrigin(CrossOriginConfig.create()).build()
+```
+
+---
+
+## 10. Quick Reference Checklist
+
+Before committing code, verify:
+
+- [ ] Domain models have ZERO framework imports (only Lombok + `java.*`)
+- [ ] Domain ports are plain interfaces with no annotations
+- [ ] Domain layer does NOT import from `application` or `infrastructure`
+- [ ] All mapping uses MapStruct (`componentModel = "jsr330"`), not manual field copying
+- [ ] Repository interfaces in `domain/port/`, implementations in `infrastructure/persistence/`
+- [ ] JDBC adapters use parameterized SQL — no string concatenation
+- [ ] Write methods use write pool, read methods use read pool
+- [ ] `ReentrantLock` used everywhere — no `synchronized`
+- [ ] Constructor injection via `@RequiredArgsConstructor`, no `@Autowired`
+- [ ] Functional style: streams over loops, Optional pipelines over null checks
+- [ ] `var` used for local variables when type is obvious from RHS
+- [ ] No comments or Javadoc — code is self-documenting
+- [ ] No `System.out`/`System.err` — use `@Slf4j`
+- [ ] Tests follow [TESTING_STANDARDS.md](TESTING_STANDARDS.md)
+- [ ] `./gradlew build` passes (compile + Spotless + unit + integration + ArchUnit)
