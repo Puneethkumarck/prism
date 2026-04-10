@@ -49,6 +49,7 @@ dependencies {
     testFixturesAnnotationProcessor(libs.lombok)
 
     testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
     testImplementation(libs.assertj.core)
