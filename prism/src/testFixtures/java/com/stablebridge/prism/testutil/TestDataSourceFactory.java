@@ -7,11 +7,11 @@ public final class TestDataSourceFactory {
 
     private TestDataSourceFactory() {}
 
-    public static HikariDataSource create(String jdbcUrl, boolean readOnly) {
+    public static HikariDataSource create(String jdbcUrl, String username, String password, boolean readOnly) {
         var config = new HikariConfig();
         config.setJdbcUrl(jdbcUrl);
-        config.setUsername("indexer");
-        config.setPassword("indexer");
+        config.setUsername(username);
+        config.setPassword(password);
         config.setMaximumPoolSize(5);
         config.setReadOnly(readOnly);
         return new HikariDataSource(config);

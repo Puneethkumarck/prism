@@ -9,5 +9,5 @@ repositories {
 
 dependencies {
     implementation("com.diffplug.spotless:spotless-plugin-gradle:7.0.4")
-    implementation("com.google.cloud.tools:jib-gradle-plugin:3.4.5")
+    implementation("com.google.cloud.tools:jib-gradle-plugin:3.5.3")
 }

@@ -14,16 +14,20 @@ public class PostgresExtension implements BeforeAllCallback {
                     .withUsername("indexer")
                     .withPassword("indexer");
 
-    private static volatile DataSource writePool;
-    private static volatile DataSource readPool;
+    private static final DataSource writePool;
+    private static final DataSource readPool;
+
+    static {
+        POSTGRES.start();
+        writePool = TestDataSourceFactory.create(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword(), false);
+        readPool = TestDataSourceFactory.create(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword(), true);
+    }
 
     @Override
     public void beforeAll(ExtensionContext context) {
-        if (!POSTGRES.isRunning()) {
-            POSTGRES.start();
-            writePool = TestDataSourceFactory.create(POSTGRES.getJdbcUrl(), false);
-            readPool = TestDataSourceFactory.create(POSTGRES.getJdbcUrl(), true);
-        }
+        // Container started via static initializer (singleton pattern)
     }
 
     public static PostgreSQLContainer<?> container() {
