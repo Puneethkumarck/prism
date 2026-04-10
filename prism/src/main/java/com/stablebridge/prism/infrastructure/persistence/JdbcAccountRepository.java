@@ -33,17 +33,23 @@ public class JdbcAccountRepository implements AccountRepository {
         if (accounts.isEmpty()) {
             return;
         }
-        try (var conn = writePool.getConnection();
-                var ps = conn.prepareStatement(UPSERT_SQL)) {
-            for (var account : accounts) {
-                ps.setString(1, account.pubkey().value());
-                ps.setLong(2, account.lamports());
-                ps.setLong(3, account.slot());
-                ps.setBoolean(4, account.executable());
-                ps.setLong(5, account.rentEpoch());
-                ps.addBatch();
+        try (var conn = writePool.getConnection()) {
+            conn.setAutoCommit(false);
+            try (var ps = conn.prepareStatement(UPSERT_SQL)) {
+                for (var account : accounts) {
+                    ps.setString(1, account.pubkey().value());
+                    ps.setLong(2, account.lamports());
+                    ps.setLong(3, account.slot());
+                    ps.setBoolean(4, account.executable());
+                    ps.setLong(5, account.rentEpoch());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
-            ps.executeBatch();
             log.debug("Batch upserted {} accounts", accounts.size());
         } catch (SQLException e) {
             throw new RuntimeException("Failed to batch upsert accounts", e);

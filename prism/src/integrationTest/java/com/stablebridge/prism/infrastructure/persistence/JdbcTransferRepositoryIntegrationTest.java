@@ -57,7 +57,7 @@ class JdbcTransferRepositoryIntegrationTest {
     }
 
     @Test
-    void shouldFindByMinAmount() {
+    void shouldFindByMinAmountWithPagination() {
         // given
         var transfers = List.of(
                 largeTransferBuilder()
@@ -79,10 +79,16 @@ class JdbcTransferRepositoryIntegrationTest {
         repository.bulkInsert(transfers);
 
         // when
-        var results = repository.findByMinAmount(new BigDecimal("2.0"), 10, 0);
+        var page1 = repository.findByMinAmount(new BigDecimal("2.0"), 2, 0);
+        var page2 = repository.findByMinAmount(new BigDecimal("2.0"), 2, 2);
 
         // then
-        assertThat(results).hasSize(3);
+        assertThat(page1).hasSize(2);
+        assertThat(page2).hasSize(1);
+        assertThat(page1)
+                .extracting(t -> t.signature().value())
+                .doesNotContainAnyElementsOf(
+                        page2.stream().map(t -> t.signature().value()).toList());
     }
 
     @Test

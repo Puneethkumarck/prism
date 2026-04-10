@@ -67,10 +67,16 @@ class JdbcMemoRepositoryIntegrationTest {
         repository.bulkInsert(memos);
 
         // when
-        var result = repository.findAll(3, 0);
+        var page1 = repository.findAll(3, 0);
+        var page2 = repository.findAll(3, 3);
 
         // then
-        assertThat(result).hasSize(3);
+        assertThat(page1).hasSize(3);
+        assertThat(page2).hasSize(3);
+        assertThat(page1)
+                .extracting(m -> m.signature().value())
+                .doesNotContainAnyElementsOf(
+                        page2.stream().map(m -> m.signature().value()).toList());
     }
 
     @Test

@@ -32,14 +32,20 @@ public class JdbcMemoRepository implements MemoRepository {
         if (memos.isEmpty()) {
             return;
         }
-        try (var conn = writePool.getConnection();
-                var ps = conn.prepareStatement(INSERT_SQL)) {
-            for (var memo : memos) {
-                ps.setString(1, memo.signature().value());
-                ps.setString(2, memo.memoText());
-                ps.addBatch();
+        try (var conn = writePool.getConnection()) {
+            conn.setAutoCommit(false);
+            try (var ps = conn.prepareStatement(INSERT_SQL)) {
+                for (var memo : memos) {
+                    ps.setString(1, memo.signature().value());
+                    ps.setString(2, memo.memoText());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
-            ps.executeBatch();
             log.debug("Batch inserted {} memos", memos.size());
         } catch (SQLException e) {
             throw new RuntimeException("Failed to bulk insert memos", e);
@@ -48,6 +54,12 @@ public class JdbcMemoRepository implements MemoRepository {
 
     @Override
     public List<Memo> findAll(long limit, long offset) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must be non-negative");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("offset must be non-negative");
+        }
         try (var conn = readPool.getConnection();
                 var ps = conn.prepareStatement(FIND_ALL_SQL)) {
             ps.setLong(1, limit);

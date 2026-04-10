@@ -24,15 +24,21 @@ public class JdbcFailedTransactionRepository implements FailedTransactionReposit
         if (batch.isEmpty()) {
             return;
         }
-        try (var conn = writePool.getConnection();
-                var ps = conn.prepareStatement(INSERT_SQL)) {
-            for (var ft : batch) {
-                ps.setString(1, ft.signature().value());
-                ps.setLong(2, ft.slot());
-                ps.setString(3, ft.error());
-                ps.addBatch();
+        try (var conn = writePool.getConnection()) {
+            conn.setAutoCommit(false);
+            try (var ps = conn.prepareStatement(INSERT_SQL)) {
+                for (var ft : batch) {
+                    ps.setString(1, ft.signature().value());
+                    ps.setLong(2, ft.slot());
+                    ps.setString(3, ft.error());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
-            ps.executeBatch();
             log.debug("Batch inserted {} failed transactions", batch.size());
         } catch (SQLException e) {
             throw new RuntimeException("Failed to bulk insert failed transactions", e);

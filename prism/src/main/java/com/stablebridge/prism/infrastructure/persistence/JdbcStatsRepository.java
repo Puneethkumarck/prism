@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 public class JdbcStatsRepository implements StatsRepository {
 
     private static final String COUNT_QUERY =
-            "SELECT COALESCE(n_live_tup, 0) FROM pg_stat_user_tables WHERE relname = ?";
+            "SELECT COALESCE(n_live_tup, 0) FROM pg_stat_user_tables WHERE schemaname = 'public' AND relname = ?";
 
     private final DataSource readPool;
 

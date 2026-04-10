@@ -22,7 +22,7 @@ public class JdbcTransferRepository implements TransferRepository {
             "INSERT INTO large_transfers (signature, slot, amount) VALUES (?, ?, ?)";
 
     private static final String FIND_BY_MIN_AMOUNT_SQL =
-            "SELECT signature, slot, amount FROM large_transfers WHERE amount >= ? ORDER BY amount DESC LIMIT ? OFFSET ?";
+            "SELECT signature, slot, amount FROM large_transfers WHERE amount >= ? ORDER BY amount DESC, signature ASC LIMIT ? OFFSET ?";
 
     private static final String COUNT_BY_MIN_AMOUNT_SQL =
             "SELECT COUNT(*) FROM large_transfers WHERE amount >= ?";
@@ -35,15 +35,21 @@ public class JdbcTransferRepository implements TransferRepository {
         if (transfers.isEmpty()) {
             return;
         }
-        try (var conn = writePool.getConnection();
-                var ps = conn.prepareStatement(INSERT_SQL)) {
-            for (var transfer : transfers) {
-                ps.setString(1, transfer.signature().value());
-                ps.setLong(2, transfer.slot());
-                ps.setBigDecimal(3, transfer.amount());
-                ps.addBatch();
+        try (var conn = writePool.getConnection()) {
+            conn.setAutoCommit(false);
+            try (var ps = conn.prepareStatement(INSERT_SQL)) {
+                for (var transfer : transfers) {
+                    ps.setString(1, transfer.signature().value());
+                    ps.setLong(2, transfer.slot());
+                    ps.setBigDecimal(3, transfer.amount());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
-            ps.executeBatch();
             log.debug("Batch inserted {} transfers", transfers.size());
         } catch (SQLException e) {
             throw new RuntimeException("Failed to bulk insert transfers", e);
