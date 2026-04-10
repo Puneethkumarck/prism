@@ -55,8 +55,15 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.archunit.junit5)
 
+    testFixturesImplementation(platform(libs.testcontainers.bom))
+    testFixturesImplementation(platform(libs.junit.bom))
+    testFixturesImplementation(libs.junit.jupiter)
     testFixturesImplementation(libs.assertj.core)
     testFixturesImplementation(libs.mockito.core)
+    testFixturesImplementation(libs.testcontainers.junit5)
+    testFixturesImplementation(libs.testcontainers.postgresql)
+    testFixturesImplementation(libs.hikari)
+    testFixturesImplementation(libs.pgjdbc)
 
     "integrationTestImplementation"(libs.testcontainers.junit5)
     "integrationTestImplementation"(libs.testcontainers.postgresql)
