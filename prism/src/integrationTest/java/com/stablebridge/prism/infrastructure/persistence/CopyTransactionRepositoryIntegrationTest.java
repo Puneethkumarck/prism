@@ -155,11 +155,18 @@ class CopyTransactionRepositoryIntegrationTest {
         var result = repository.findBySlot(slot);
 
         // then
-        assertThat(result).hasSize(3);
+        assertThat(result).hasSize(3)
+                .allSatisfy(tx -> assertThat(tx.slot()).isEqualTo(slot));
+        assertThat(result)
+                .extracting(tx -> tx.signature().value())
+                .containsExactlyInAnyOrder(
+                        "5Kx7aEwMbSlotTest00001",
+                        "5Kx7aEwMbSlotTest00002",
+                        "5Kx7aEwMbSlotTest00003");
     }
 
     @Test
-    void shouldPaginateWithLimitAndOffset() {
+    void shouldLimitResults() {
         // given
         var batch = IntStream.range(0, 10)
                 .mapToObj(i -> transactionBuilder()
@@ -169,16 +176,27 @@ class CopyTransactionRepositoryIntegrationTest {
         repository.bulkInsert(batch);
 
         // when
-        var page1 = repository.findAll(3, 0, null);
-        var page2 = repository.findAll(3, 3, null);
+        var result = repository.findAll(3, 0, null);
 
         // then
-        assertThat(page1).hasSize(3);
-        assertThat(page2).hasSize(3);
-        assertThat(page1)
-                .extracting(tx -> tx.signature().value())
-                .doesNotContainAnyElementsOf(
-                        page2.stream().map(tx -> tx.signature().value()).toList());
+        assertThat(result).hasSize(3);
+    }
+
+    @Test
+    void shouldOffsetResults() {
+        // given
+        var batch = IntStream.range(0, 10)
+                .mapToObj(i -> transactionBuilder()
+                        .signature(new Signature("5Kx7aEwMbPage" + String.format("%04d", i)))
+                        .build())
+                .toList();
+        repository.bulkInsert(batch);
+
+        // when
+        var result = repository.findAll(10, 3, null);
+
+        // then
+        assertThat(result).hasSize(7);
     }
 
     @Test

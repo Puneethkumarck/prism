@@ -32,6 +32,9 @@ public class CopyTransactionRepository implements TransactionRepository {
 
     private static final String TRUNCATE_STAGING_SQL = "TRUNCATE staging_transactions";
 
+    private static final String LOCK_STAGING_SQL =
+            "LOCK TABLE staging_transactions IN EXCLUSIVE MODE";
+
     private static final String FIND_BY_SIGNATURE_SQL =
             "SELECT signature, slot, success, created_at FROM transactions WHERE signature = ?";
 
@@ -59,13 +62,23 @@ public class CopyTransactionRepository implements TransactionRepository {
             return;
         }
         try (var conn = writePool.getConnection()) {
-            var pgConn = conn.unwrap(PGConnection.class);
-            var tsv = buildTsv(successful);
-            pgConn.getCopyAPI()
-                    .copyIn(COPY_SQL, new ByteArrayInputStream(tsv.getBytes(StandardCharsets.UTF_8)));
-            try (var stmt = conn.createStatement()) {
-                stmt.execute(MERGE_SQL);
-                stmt.execute(TRUNCATE_STAGING_SQL);
+            conn.setAutoCommit(false);
+            try {
+                try (var stmt = conn.createStatement()) {
+                    stmt.execute(LOCK_STAGING_SQL);
+                }
+                var pgConn = conn.unwrap(PGConnection.class);
+                var tsv = buildTsv(successful);
+                pgConn.getCopyAPI()
+                        .copyIn(COPY_SQL, new ByteArrayInputStream(tsv.getBytes(StandardCharsets.UTF_8)));
+                try (var stmt = conn.createStatement()) {
+                    stmt.execute(MERGE_SQL);
+                    stmt.execute(TRUNCATE_STAGING_SQL);
+                }
+                conn.commit();
+            } catch (SQLException | IOException e) {
+                conn.rollback();
+                throw e;
             }
             log.debug("COPY inserted {} transactions", successful.size());
         } catch (SQLException | IOException e) {
