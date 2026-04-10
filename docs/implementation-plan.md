@@ -65,28 +65,30 @@ application → domain ← infrastructure
 ```
 domain/                                ZERO framework imports — only Lombok + java.* 
 ├── model/
-│   ├── SolanaTransaction.java          Record: signature, slot, amount, failed, memo, from, to
-│   ├── Account.java                    Record: pubkey, lamports, slot, executable, rentEpoch
-│   ├── LargeTransfer.java             Record: signature, slot, amount
-│   ├── Memo.java                       Record: signature, memoText
-│   ├── FailedTransaction.java         Record: signature, slot, error
-│   ├── Slot.java                       Value object wrapping long
-│   ├── BatchResult.java               Record: written, failed, memos, transfers
+│   ├── SolanaTransaction.java          Aggregate root: Signature, slot, BigDecimal amount, failed, memo, Pubkey from/to
+│   ├── Account.java                    Record: Pubkey pubkey, lamports, slot, executable, rentEpoch
+│   ├── LargeTransfer.java             Projection: Signature, slot, BigDecimal amount
+│   ├── Memo.java                       Projection: Signature, memoText
+│   ├── FailedTransaction.java         Projection: Signature, slot, error
+│   ├── Signature.java                  Value object: wraps String (max 88 chars, Base58 ed25519)
+│   ├── Pubkey.java                     Value object: wraps String (max 44 chars, Base58 ed25519)
+│   ├── Slot.java                       Value object: wraps long (non-negative)
+│   ├── BatchResult.java               Record: written, failed, memos, transfers (all non-negative)
 │   └── IndexerStats.java              Record: totalTransactions, totalFailed, totalTransfers, totalMemos, totalAccounts
 ├── port/
 │   ├── TransactionStream.java          Interface: subscribe(consumer), close()
-│   ├── TransactionRepository.java      Interface: bulkInsert(batch), findBySignature, findBySlot, countAll, countBySuccess
+│   ├── TransactionRepository.java      Interface: bulkInsert(batch), findBySignature(Signature), findBySlot, countAll, countBySuccess
 │   ├── FailedTransactionRepository.java Interface: bulkInsert(batch)
-│   ├── TransferRepository.java         Interface: bulkInsert(transfers), findByMinAmount(min, limit, offset), countByMinAmount
+│   ├── TransferRepository.java         Interface: bulkInsert(transfers), findByMinAmount(BigDecimal, limit, offset), countByMinAmount
 │   ├── MemoRepository.java             Interface: bulkInsert(memos), findAll(limit, offset), countAll
-│   ├── AccountRepository.java          Interface: batchUpsert(accounts), findByPubkey
+│   ├── AccountRepository.java          Interface: batchUpsert(accounts), findByPubkey(Pubkey)
 │   ├── StatsRepository.java            Interface: getStats() → IndexerStats
 │   └── MetricsRecorder.java            Interface: recordBatch(result), recordSlot(), incrementReceived()
 ├── service/
 │   ├── TransactionBatchService.java    Dual-trigger accumulation (200 tx / 100ms), uses ReentrantLock
 │   ├── AccountBatchService.java        Dual-trigger accumulation (200 accts / 2s), dedup by pubkey
 │   ├── TransactionProcessor.java       Classify batch → parallel writes to 4 repos
-│   └── LargeTransferFilter.java        Pure function: amount > 1.0 SOL
+│   └── LargeTransferFilter.java        Pure function: BigDecimal amount > 1.0 SOL
 └── event/
     └── SlotReceivedEvent.java          Record: slot, parentSlot, timestamp
 

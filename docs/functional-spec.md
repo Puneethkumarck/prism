@@ -558,7 +558,7 @@ A single transaction can produce both `[MEMO]` and `[TRANSFER]` output if it has
 | `id` | `SERIAL` | `PRIMARY KEY` | Auto-increment |
 | `signature` | `VARCHAR(88)` | `NOT NULL` | Transaction signature |
 | `slot` | `BIGINT` | `NOT NULL` | Solana slot number |
-| `amount` | `DOUBLE PRECISION` | `NOT NULL` | Transfer amount in SOL |
+| `amount` | `NUMERIC` | `NOT NULL` | Transfer amount in SOL (BigDecimal in Java) |
 | `created_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT NOW()` | Indexer insertion time |
 
 #### `memos`

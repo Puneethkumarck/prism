@@ -66,6 +66,87 @@ com.stablebridge.prism
 
 ## 3. Domain Layer
 
+### 3.0 DDD Classification Guide
+
+When introducing a new type, ask these three questions in order:
+
+| # | Question | If YES | Example |
+|---|----------|--------|---------|
+| 1 | Can I swap two instances with the same fields and nothing breaks? | **Value Object** | `Signature`, `Pubkey`, `Slot` |
+| 2 | Does it have its own table, own queries, own lifecycle? | **Aggregate Root** | `SolanaTransaction`, `Account` |
+| 3 | Is it always derived from or owned by another entity? | **Projection / Child** | `LargeTransfer`, `Memo`, `FailedTransaction` |
+
+#### Value Objects
+
+A value object is defined entirely by its fields. Two instances with the same fields are interchangeable.
+
+**When to wrap a primitive in a value object:**
+- Two types share the same underlying primitive but mean different things (e.g., `Signature` and `Pubkey` are both `String` — wrapping prevents mixing them at compile time)
+- The value has invariants that should be enforced once (e.g., max length, non-blank)
+
+**When NOT to wrap:**
+- There is no confusion risk (e.g., `BigDecimal` for amounts — no other `BigDecimal` in the domain to confuse it with)
+- The type is only used in one place and wrapping adds friction without safety
+
+**Implementation rules:**
+- Single-field records, no `@Builder`
+- Compact constructor validates invariants (non-null, non-blank, max length)
+- Java records provide `equals`/`hashCode` by value automatically
+- Use as map keys, set elements, and method parameters where type safety matters
+
+#### Entities (Aggregate Roots)
+
+An entity has identity and lifecycle. Two entities with identical fields are different objects if they have different identities.
+
+**How to identify:**
+- Has a unique identifier (signature, pubkey) assigned externally (by the blockchain, not by the application)
+- Stored in its own database table
+- Queried directly via its own repository port
+- Other aggregates reference it by ID, not by direct object reference
+
+**Implementation rules:**
+- Java records with `@Builder(toBuilder = true)`
+- Compact constructor validates required fields and invariants
+- Contains factory methods for derived projections (`toLargeTransfer()`, `toMemo()`)
+- One repository port per aggregate root
+
+#### Projections (Child Entities)
+
+A projection is derived from an aggregate root and does not exist independently.
+
+**How to identify:**
+- Created from a parent entity's fields (never from scratch)
+- Does not have its own independent lifecycle — if the parent didn't exist, neither would the projection
+- May have its own table for query performance, but the source of truth is the parent
+
+**Implementation rules:**
+- Java records with `@Builder(toBuilder = true)`
+- Created via factory methods on the aggregate root (`tx.toLargeTransfer()`)
+- Share the parent's identity field (same `Signature`)
+- Never created directly in services — always derived from the aggregate root
+
+#### Decision Tree
+
+```
+New type arrives
+    │
+    ├── "Is it identified by value alone?"
+    │       │
+    │      YES → VALUE OBJECT
+    │              No @Builder, compact constructor validation
+    │              Examples: Signature, Pubkey, Slot
+    │
+    └── "Does it have independent lifecycle?"
+            │
+           YES → AGGREGATE ROOT
+           │      @Builder, own repository port, factory methods for projections
+           │      Examples: SolanaTransaction, Account
+           │
+            NO → PROJECTION
+                   @Builder, created via aggregate root factory method
+                   Examples: LargeTransfer, Memo, FailedTransaction
+```
+
 ### 3.1 Domain Models
 
 Use **Java records** with `@Builder(toBuilder = true)` for all domain models. Positional constructors are NOT acceptable for records with 3+ fields — callers must use named builder fields.
@@ -73,34 +154,124 @@ Use **Java records** with `@Builder(toBuilder = true)` for all domain models. Po
 ```java
 @Builder(toBuilder = true)
 public record SolanaTransaction(
-        String signature,
+        Signature signature,
         long slot,
-        double amount,
+        BigDecimal amount,
         boolean failed,
         String memo,
-        String from,
-        String to
-) {}
+        Pubkey from,
+        Pubkey to
+) {
+    public SolanaTransaction {
+        Objects.requireNonNull(signature, "signature must not be null");
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (slot < 0) {
+            throw new IllegalArgumentException("slot must not be negative");
+        }
+    }
+}
 
 @Builder(toBuilder = true)
 public record Account(
-        String pubkey,
+        Pubkey pubkey,
         long lamports,
         long slot,
         boolean executable,
         long rentEpoch
-) {}
+) {
+    public Account {
+        Objects.requireNonNull(pubkey, "pubkey must not be null");
+        if (lamports < 0) {
+            throw new IllegalArgumentException("lamports must not be negative");
+        }
+    }
+}
 
 @Builder(toBuilder = true)
-public record BatchResult(long written, long failed, long memos, long transfers) {}
+public record BatchResult(long written, long failed, long memos, long transfers) {
+    public BatchResult {
+        if (written < 0) {
+            throw new IllegalArgumentException("written must not be negative");
+        }
+    }
+}
 ```
 
 **Rules:**
 - Domain models are immutable. State transitions return new instances (via `toBuilder()`)
-- Records MUST have `@Builder(toBuilder = true)` — exception: trivial 1-2 field records
+- Records MUST have `@Builder(toBuilder = true)` — exception: value objects with 1 field (`Signature`, `Pubkey`, `Slot`)
+- All records MUST have compact constructor validation:
+  - `Objects.requireNonNull()` for required reference-type fields
+  - Non-negative checks (`if (field < 0)`) for `long` fields representing counts, slots, or amounts
+  - Nullable fields (e.g., `memo`, `from`, `to`) are NOT validated — they remain nullable by design
+- Use `BigDecimal` for all monetary/SOL amounts — never `double` or `float`
+- Use `Signature` and `Pubkey` value objects for identifiers — never raw `String`
 - No JDBC annotations (`java.sql.*`) in domain models — stays in infrastructure
 - No framework annotations. Only Lombok (`@Builder`, `@Slf4j`, `@RequiredArgsConstructor`)
 - Use `@Slf4j` on all classes with logging (domain services, not records)
+
+### 3.1.1 Value Objects
+
+Single-field value objects wrap primitive identifiers with validation. They do NOT use `@Builder` — callers use `new Signature("...")`.
+
+```java
+public record Signature(String value) {
+    public Signature {
+        Objects.requireNonNull(value, "signature must not be null");
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("signature must not be blank");
+        }
+        if (value.length() > 88) {
+            throw new IllegalArgumentException("signature must not exceed 88 characters");
+        }
+    }
+}
+
+public record Pubkey(String value) {
+    public Pubkey {
+        Objects.requireNonNull(value, "pubkey must not be null");
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("pubkey must not be blank");
+        }
+        if (value.length() > 44) {
+            throw new IllegalArgumentException("pubkey must not exceed 44 characters");
+        }
+    }
+}
+```
+
+**Rules:**
+- Value objects validate in compact constructors: non-null, non-blank, max length
+- No `@Builder` — single-field records use the canonical constructor directly
+- Only `java.*` imports — no Lombok needed
+- Java records provide `equals`/`hashCode` by value automatically
+- Use in port interfaces: `findBySignature(Signature)` not `findBySignature(String)`
+
+### 3.1.2 Aggregate Root
+
+`SolanaTransaction` is the aggregate root. Derived projections are created via factory methods:
+
+```java
+public record SolanaTransaction(...) {
+    public LargeTransfer toLargeTransfer() {
+        return LargeTransfer.builder().signature(signature).slot(slot).amount(amount).build();
+    }
+
+    public Memo toMemo() {
+        Objects.requireNonNull(memo, "cannot create Memo from transaction without memo");
+        return Memo.builder().signature(signature).memoText(memo).build();
+    }
+
+    public FailedTransaction toFailedTransaction(String error) {
+        return FailedTransaction.builder().signature(signature).slot(slot).error(error).build();
+    }
+}
+```
+
+**Rules:**
+- `LargeTransfer`, `Memo`, `FailedTransaction` are projections derived from `SolanaTransaction`
+- Projection methods live on the aggregate root, not in services
+- `toMemo()` validates that memo is non-null before creating the projection
 
 ### 3.2 Domain Ports
 
@@ -110,7 +281,7 @@ Define interfaces in the domain layer. Infrastructure provides implementations.
 // domain/port/TransactionRepository.java — plain interface, no annotations
 public interface TransactionRepository {
     void bulkInsert(List<SolanaTransaction> batch);
-    Optional<SolanaTransaction> findBySignature(String signature);
+    Optional<SolanaTransaction> findBySignature(Signature signature);
     List<SolanaTransaction> findBySlot(long slot);
     List<SolanaTransaction> findAll(long limit, long offset, Boolean success);
     long countAll();
@@ -127,6 +298,7 @@ public interface TransactionStream {
 **Rules:**
 - Plain interfaces, no annotations
 - Only domain model types in method signatures — no `DataSource`, `Connection`, `JsonNode`, `Channel`
+- Use value objects in parameters: `findBySignature(Signature)`, `findByPubkey(Pubkey)` — not raw `String`
 - Return `Optional` for lookups that may not find a result
 - Use `List` for collection returns, `void` for writes
 
@@ -302,10 +474,10 @@ public class CopyTransactionRepository implements TransactionRepository {
     }
 
     @Override
-    public Optional<SolanaTransaction> findBySignature(String signature) {
+    public Optional<SolanaTransaction> findBySignature(Signature signature) {
         try (var conn = readPool.getConnection();
              var ps = conn.prepareStatement("SELECT * FROM transactions WHERE signature = ?")) {
-            ps.setString(1, signature);
+            ps.setString(1, signature.value());
             try (var rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }
@@ -550,7 +722,10 @@ CorsSupport.builder().addCrossOrigin(CrossOriginConfig.create()).build()
 Before committing code, verify:
 
 - [ ] Domain models have ZERO framework imports (only Lombok + `java.*`)
-- [ ] Domain ports are plain interfaces with no annotations
+- [ ] Domain models have compact constructor validation (`Objects.requireNonNull`, non-negative checks)
+- [ ] Identifiers use value objects: `Signature`, `Pubkey` — not raw `String`
+- [ ] Monetary amounts use `BigDecimal` — not `double` or `float`
+- [ ] Domain ports are plain interfaces with no annotations, using value object types
 - [ ] Domain layer does NOT import from `application` or `infrastructure`
 - [ ] All mapping uses MapStruct (`componentModel = "jsr330"`), not manual field copying
 - [ ] Repository interfaces in `domain/port/`, implementations in `infrastructure/persistence/`

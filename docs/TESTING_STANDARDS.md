@@ -65,7 +65,7 @@ assertThat(result)
 | Case | Why allowed | Example |
 |------|------------|---------|
 | Exception assertions | No object to compare | `assertThatThrownBy(...).isInstanceOf(...).hasMessage(...)` |
-| Single boolean/primitive | Trivial comparison | `assertThat(LargeTransferFilter.isLargeTransfer(1.1)).isTrue()` |
+| Single boolean/primitive | Trivial comparison | `assertThat(LargeTransferFilter.isLargeTransfer(new BigDecimal("1.1"))).isTrue()` |
 | Collection size + containment | AssertJ collection API | `assertThat(list).hasSize(3).containsOnly(a, b, c)` |
 | Single enum/string mapping | One-to-one mapping | `assertThat(result).isEqualTo(EXPECTED_ENUM)` |
 | Optional presence checks | Wrapper, not domain object | `assertThat(result).isPresent().hasValue(expected)` |
@@ -225,30 +225,35 @@ public final class TransactionFixtures {
     private TransactionFixtures() {}
 
     public static final SolanaTransaction SOME_TRANSACTION = transactionBuilder().build();
-    public static final SolanaTransaction SOME_FAILED_TRANSACTION = transactionBuilder().failed(true).build();
-    public static final SolanaTransaction SOME_MEMO_TRANSACTION = transactionBuilder().memo("hello").build();
-    public static final SolanaTransaction SOME_LARGE_TRANSFER = transactionBuilder().amount(5.0).build();
+    public static final SolanaTransaction SOME_FAILED_TRANSACTION = transactionBuilder()
+            .signature(new Signature("5Kx7aEwMbFailedSig00001")).failed(true).build();
+    public static final SolanaTransaction SOME_MEMO_TRANSACTION = transactionBuilder()
+            .signature(new Signature("5Kx7aEwMbMemoSignature01")).memo("hello solana").build();
+    public static final SolanaTransaction SOME_LARGE_TRANSFER = transactionBuilder()
+            .signature(new Signature("5Kx7aEwMbLargeTransfer01")).amount(new BigDecimal("5.0")).build();
 }
 ```
 
 **Pattern 2: Builder factory methods**
 
+Builder factories use value objects and UUID-based unique identifiers:
+
 ```java
 public static SolanaTransaction.SolanaTransactionBuilder transactionBuilder() {
     return SolanaTransaction.builder()
-            .signature("5Kx7aEwMb" + UUID.randomUUID().toString().substring(0, 8))
-            .slot(280000000L)
-            .amount(0.5)
+            .signature(new Signature("5Kx7aEwMb" + UUID.randomUUID().toString().substring(0, 8)))
+            .slot(280_000_000L)
+            .amount(new BigDecimal("0.5"))
             .failed(false)
-            .from("sender1234...abcd5678")
-            .to("receiver12...efgh5678");
+            .from(new Pubkey("SenderPubkey1234abcd5678"))
+            .to(new Pubkey("ReceiverPubkey12efgh5678"));
 }
 
 public static Account.AccountBuilder accountBuilder() {
     return Account.builder()
-            .pubkey("7xKXtg2C" + UUID.randomUUID().toString().substring(0, 8))
+            .pubkey(new Pubkey("7xKXtg2C" + UUID.randomUUID().toString().substring(0, 8)))
             .lamports(1_000_000_000L)
-            .slot(280000000L)
+            .slot(280_000_000L)
             .executable(false)
             .rentEpoch(0);
 }
@@ -309,7 +314,58 @@ assertThatThrownBy(() -> config.fromEnv())
 
 ```java
 assertThat(transactions).hasSize(3);
-assertThat(transactions).extracting(SolanaTransaction::signature).containsExactly("sig1", "sig2", "sig3");
+assertThat(transactions).extracting(SolanaTransaction::signature).containsExactly(sig1, sig2, sig3);
+```
+
+### Validation Assertions (MANDATORY for all compact constructors)
+
+Every compact constructor constraint MUST have a corresponding test:
+
+```java
+@Test
+void shouldRejectNullSignature() {
+    // when/then
+    assertThatThrownBy(() -> transactionBuilder().signature(null).build())
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("signature");
+}
+
+@Test
+void shouldRejectNegativeSlot() {
+    // when/then
+    assertThatThrownBy(() -> transactionBuilder().slot(-1).build())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("slot");
+}
+```
+
+**Rules:**
+- One test per constraint (null check, range check, blank check, max length)
+- Use `assertThatThrownBy` with exact exception type and message substring
+- Test uses the fixture builder with only the invalid field overridden
+- Value objects (`Signature`, `Pubkey`) get dedicated test classes
+
+### Aggregate Projection Assertions
+
+Test factory methods on the aggregate root:
+
+```java
+@Test
+void shouldCreateLargeTransfer() {
+    // given
+    var tx = SOME_LARGE_TRANSFER;
+
+    // when
+    var result = tx.toLargeTransfer();
+
+    // then
+    var expected = LargeTransfer.builder()
+            .signature(tx.signature())
+            .slot(tx.slot())
+            .amount(tx.amount())
+            .build();
+    assertThat(result).usingRecursiveComparison().isEqualTo(expected);
+}
 ```
 
 ---

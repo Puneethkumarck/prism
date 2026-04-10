@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS large_transfers (
     id         SERIAL PRIMARY KEY,
     signature  VARCHAR(88) NOT NULL,
     slot       BIGINT NOT NULL,
-    amount     DOUBLE PRECISION NOT NULL,
+    amount     NUMERIC NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
