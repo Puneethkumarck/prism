@@ -393,10 +393,10 @@ public class CopyTransactionRepository implements TransactionRepository {
     }
 
     @Override
-    public Optional<SolanaTransaction> findBySignature(String signature) {
+    public Optional<SolanaTransaction> findBySignature(Signature signature) {
         try (var conn = readPool.getConnection();
              var ps = conn.prepareStatement("SELECT * FROM transactions WHERE signature = ?")) {
-            ps.setString(1, signature);
+            ps.setString(1, signature.value());
             try (var rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }

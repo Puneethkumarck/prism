@@ -80,7 +80,7 @@ Shared response DTOs used by Helidon route handlers and tests. Lives in the `pri
 |--------|--------|
 | `Page<T>` | `List<T> data`, `long total`, `long limit`, `long offset` |
 | `TransactionResponse` | `String signature`, `long slot`, `boolean success`, `Instant createdAt` |
-| `TransferResponse` | `int id`, `String signature`, `long slot`, `double amount`, `Instant createdAt` |
+| `TransferResponse` | `int id`, `String signature`, `long slot`, `BigDecimal amount`, `Instant createdAt` |
 | `MemoResponse` | `int id`, `String signature`, `String memo`, `Instant createdAt` |
 | `AccountResponse` | `String pubkey`, `long lamports`, `long slot`, `boolean executable`, `long rentEpoch`, `Instant createdAt` |
 | `StatsResponse` | `long totalTransactions`, `long totalFailed`, `long totalTransfers`, `long totalMemos`, `long totalAccounts` |
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS large_transfers (
     id         SERIAL PRIMARY KEY,
     signature  VARCHAR(88) NOT NULL,
     slot       BIGINT NOT NULL,
-    amount     DOUBLE PRECISION NOT NULL,
+    amount     NUMERIC NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -342,13 +342,15 @@ Create 8 records in `domain/model/`:
 
 | Record | Fields | Notes |
 |--------|--------|-------|
-| `SolanaTransaction` | `String signature`, `long slot`, `double amount`, `boolean failed`, `String memo` (nullable), `String from` (nullable), `String to` (nullable) | Core indexed entity |
-| `Account` | `String pubkey`, `long lamports`, `long slot`, `boolean executable`, `long rentEpoch` | Fee payer snapshot |
-| `LargeTransfer` | `String signature`, `long slot`, `double amount` | Transfers > 1.0 SOL |
-| `Memo` | `String signature`, `String memoText` | Extracted memo payload |
-| `FailedTransaction` | `String signature`, `long slot`, `String error` | On-chain failures |
-| `Slot` | `long value` | Value object |
-| `BatchResult` | `long written`, `long failed`, `long memos`, `long transfers` | Flush outcome |
+| `SolanaTransaction` | `Signature signature`, `long slot`, `BigDecimal amount`, `boolean failed`, `String memo` (nullable), `Pubkey from` (nullable), `Pubkey to` (nullable) | Aggregate root with toLargeTransfer(), toMemo(), toFailedTransaction() |
+| `Account` | `Pubkey pubkey`, `long lamports`, `long slot`, `boolean executable`, `long rentEpoch` | Fee payer snapshot |
+| `LargeTransfer` | `Signature signature`, `long slot`, `BigDecimal amount` | Projection: transfers > 1.0 SOL |
+| `Memo` | `Signature signature`, `String memoText` | Projection: extracted memo payload |
+| `FailedTransaction` | `Signature signature`, `long slot`, `String error` | Projection: on-chain failures |
+| `Signature` | `String value` | Value object: max 88 chars, non-null, non-blank |
+| `Pubkey` | `String value` | Value object: max 44 chars, non-null, non-blank |
+| `Slot` | `long value` | Value object: non-negative |
+| `BatchResult` | `long written`, `long failed`, `long memos`, `long transfers` | Flush outcome (all non-negative) |
 | `IndexerStats` | `long totalTransactions`, `long totalFailed`, `long totalTransfers`, `long totalMemos`, `long totalAccounts` | pg_stat_user_tables result |
 
 **Files to create**
@@ -393,7 +395,7 @@ public interface TransactionStream {
 
 public interface TransactionRepository {
     void bulkInsert(List<SolanaTransaction> batch);
-    Optional<SolanaTransaction> findBySignature(String signature);
+    Optional<SolanaTransaction> findBySignature(Signature signature);
     List<SolanaTransaction> findBySlot(long slot);
     List<SolanaTransaction> findAll(long limit, long offset, Boolean success);
     long countAll();
@@ -406,8 +408,8 @@ public interface FailedTransactionRepository {
 
 public interface TransferRepository {
     void bulkInsert(List<LargeTransfer> transfers);
-    List<LargeTransfer> findByMinAmount(double minAmount, long limit, long offset);
-    long countByMinAmount(double minAmount);
+    List<LargeTransfer> findByMinAmount(BigDecimal minAmount, long limit, long offset);
+    long countByMinAmount(BigDecimal minAmount);
 }
 
 public interface MemoRepository {
@@ -418,7 +420,7 @@ public interface MemoRepository {
 
 public interface AccountRepository {
     void batchUpsert(List<Account> accounts);
-    Optional<Account> findByPubkey(String pubkey);
+    Optional<Account> findByPubkey(Pubkey pubkey);
 }
 
 public interface StatsRepository {
@@ -465,8 +467,8 @@ Pure function from functional spec FR-5. The filter itself only checks amount. T
 **Instructions**
 
 Create `LargeTransferFilter` in `domain/service/` with:
-- Constant: `public static final double LARGE_TRANSFER_THRESHOLD_SOL = 1.0`
-- Static method: `public static boolean isLargeTransfer(double amount)` returns `amount > LARGE_TRANSFER_THRESHOLD_SOL`
+- Constant: `public static final BigDecimal LARGE_TRANSFER_THRESHOLD_SOL = new BigDecimal("1.0")`
+- Static method: `public static boolean isLargeTransfer(BigDecimal amount)` returns `amount.compareTo(LARGE_TRANSFER_THRESHOLD_SOL) > 0`
 
 **Files to create**
 
@@ -505,9 +507,9 @@ Create `TransactionProcessor` in `domain/service/`:
 - Method: `public BatchResult process(List<SolanaTransaction> batch)`
 - Classification logic:
   - **Successful transactions** (`!failed`): → `TransactionRepository.bulkInsert()`
-  - **Failed transactions** (`failed`): → `FailedTransactionRepository.bulkInsert()` as `FailedTransaction` with error = "Transaction failed"
-  - **Memos** (`memo != null`, includes failed): → `MemoRepository.bulkInsert()` as `Memo`
-  - **Large transfers** (`!failed && LargeTransferFilter.isLargeTransfer(amount)`): → `TransferRepository.bulkInsert()` as `LargeTransfer`
+  - **Failed transactions** (`failed`): → `FailedTransactionRepository.bulkInsert()` via `tx.toFailedTransaction("Transaction failed")`
+  - **Memos** (`memo != null`, includes failed): → `MemoRepository.bulkInsert()` via `tx.toMemo()`
+  - **Large transfers** (`!failed && LargeTransferFilter.isLargeTransfer(amount)`): → `TransferRepository.bulkInsert()` via `tx.toLargeTransfer()`
 - All 4 repo calls execute **in parallel** using virtual threads (`Executors.newVirtualThreadPerTaskExecutor()` + `Future.get()`)
 - Use `ReentrantLock` if any shared state needed (not `synchronized`)
 - After writes: call `metricsRecorder.recordBatch(result)` with counts
@@ -713,7 +715,7 @@ Create `CopyTransactionRepository` in `infrastructure/persistence/` implementing
   7. Execute: `TRUNCATE staging_transactions`
 
 **Read methods** (use read pool):
-- `findBySignature(String sig)` → `SELECT signature, slot, success, created_at FROM transactions WHERE signature = ?`
+- `findBySignature(Signature sig)` → `SELECT signature, slot, success, created_at FROM transactions WHERE signature = ?` (use `sig.value()` for PreparedStatement)
 - `findBySlot(long slot)` → `SELECT ... WHERE slot = ? ORDER BY created_at ASC`
 - `findAll(long limit, long offset, Boolean success)` → if success != null: `WHERE success = ?`, `ORDER BY created_at DESC LIMIT ? OFFSET ?`
 - `countAll()` → `SELECT COUNT(*) FROM transactions`
@@ -862,7 +864,7 @@ Create `JdbcAccountRepository` implementing `AccountRepository`:
     executable = EXCLUDED.executable,
     rent_epoch = EXCLUDED.rent_epoch
   ```
-- Read: `findByPubkey(String)` → `SELECT ... WHERE pubkey = ?`
+- Read: `findByPubkey(Pubkey)` → `SELECT ... WHERE pubkey = ?` (use `pubkey.value()` for PreparedStatement)
 
 **Files to create**
 
