@@ -3,33 +3,29 @@ package com.stablebridge.prism.domain.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class LargeTransferFilterTest {
 
-    @Test
-    void shouldDetectLargeTransfer() {
-        // given
-        var amounts = new double[]{1.1, 10.0, 100.0, 1000.0};
+    @ParameterizedTest
+    @ValueSource(doubles = {1.1, 10.0, 100.0, 1000.0})
+    void shouldDetectLargeTransfer(double amount) {
+        // when
+        var result = LargeTransferFilter.isLargeTransfer(amount);
 
-        // when / then
-        for (var amount : amounts) {
-            assertThat(LargeTransferFilter.isLargeTransfer(amount))
-                    .as("amount %s should be a large transfer", amount)
-                    .isTrue();
-        }
+        // then
+        assertThat(result).isTrue();
     }
 
-    @Test
-    void shouldIgnoreSmallTransfer() {
-        // given
-        var amounts = new double[]{0.0, 0.000005, 0.5};
+    @ParameterizedTest
+    @ValueSource(doubles = {0.0, 0.000005, 0.5})
+    void shouldIgnoreSmallTransfer(double amount) {
+        // when
+        var result = LargeTransferFilter.isLargeTransfer(amount);
 
-        // when / then
-        for (var amount : amounts) {
-            assertThat(LargeTransferFilter.isLargeTransfer(amount))
-                    .as("amount %s should not be a large transfer", amount)
-                    .isFalse();
-        }
+        // then
+        assertThat(result).isFalse();
     }
 
     @Test
