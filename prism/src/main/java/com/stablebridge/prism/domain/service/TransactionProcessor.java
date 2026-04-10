@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
+import com.stablebridge.prism.domain.exception.BatchProcessingException;
 import com.stablebridge.prism.domain.model.BatchResult;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
 import com.stablebridge.prism.domain.port.FailedTransactionRepository;
@@ -54,9 +55,9 @@ public class TransactionProcessor {
             f4.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Batch processing interrupted", e);
+            throw new BatchProcessingException("Batch processing interrupted", e);
         } catch (ExecutionException e) {
-            throw new RuntimeException("Batch processing failed", e.getCause());
+            throw new BatchProcessingException("Batch processing failed", e.getCause());
         }
 
         var result = BatchResult.builder()
