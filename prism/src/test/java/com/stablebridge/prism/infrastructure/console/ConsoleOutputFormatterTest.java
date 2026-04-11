@@ -85,7 +85,9 @@ class ConsoleOutputFormatterTest {
         assertThat(output())
                 .contains("[MEMO]")
                 .contains("hello solana")
-                .contains(ConsoleOutputFormatter.MAGENTA);
+                .contains(ConsoleOutputFormatter.MAGENTA)
+                .doesNotContain("[TX]")
+                .doesNotContain("[TRANSFER]");
     }
 
     @Test
@@ -101,7 +103,8 @@ class ConsoleOutputFormatterTest {
                 .contains("[TRANSFER]")
                 .contains(ConsoleOutputFormatter.YELLOW)
                 .contains("Amount: 5.0 SOL")
-                .doesNotContain("[MEMO]");
+                .doesNotContain("[MEMO]")
+                .doesNotContain("[TX]");
     }
 
     @Test
@@ -134,12 +137,14 @@ class ConsoleOutputFormatterTest {
         formatter.printTransaction(tx);
 
         // then
-        assertThat(output()).contains(
-                "[MEMO]",
-                "payment note",
-                "[TRANSFER]",
-                ConsoleOutputFormatter.MAGENTA,
-                ConsoleOutputFormatter.YELLOW);
+        assertThat(output())
+                .contains(
+                        "[MEMO]",
+                        "payment note",
+                        "[TRANSFER]",
+                        ConsoleOutputFormatter.MAGENTA,
+                        ConsoleOutputFormatter.YELLOW)
+                .doesNotContain("[TX]");
     }
 
     @Test
