@@ -31,6 +31,7 @@ import com.stablebridge.prism.domain.model.SolanaTransaction;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.CommitmentLevel;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.GeyserGrpc;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequest;
+import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestFilterTransactions;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdate;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateSlot;
 
@@ -95,6 +96,14 @@ class YellowstoneTransactionStreamTest {
         stream = new YellowstoneTransactionStream(channel, parser, reconnectHandler, null);
         var txConsumer = new CopyOnWriteArrayList<SolanaTransaction>();
         var acctConsumer = new CopyOnWriteArrayList<Account>();
+        var expected = SubscribeRequest.newBuilder()
+                .putTransactions(
+                        "all",
+                        SubscribeRequestFilterTransactions.newBuilder()
+                                .setVote(false)
+                                .build())
+                .setCommitment(CommitmentLevel.CONFIRMED)
+                .build();
 
         // when
         stream.subscribe(txConsumer::add, acctConsumer::add);
@@ -103,17 +112,7 @@ class YellowstoneTransactionStreamTest {
         await().atMost(5, SECONDS).untilAsserted(() -> {
             var request = service.lastRequest();
             assertThat(request).isNotNull();
-            var expected = YellowstoneTransactionStream.buildInitialRequest();
             assertThat(request).usingRecursiveComparison().isEqualTo(expected);
-            assertThat(request.getCommitment()).isEqualTo(CommitmentLevel.CONFIRMED);
-            assertThat(request.getTransactionsMap())
-                    .containsOnlyKeys(YellowstoneTransactionStream.TRANSACTIONS_FILTER_KEY);
-            assertThat(request.getTransactionsMap()
-                            .get(YellowstoneTransactionStream.TRANSACTIONS_FILTER_KEY)
-                            .getVote())
-                    .isFalse();
-            assertThat(request.getSlotsMap())
-                    .containsOnlyKeys(YellowstoneTransactionStream.SLOTS_FILTER_KEY);
         });
     }
 
@@ -176,7 +175,7 @@ class YellowstoneTransactionStreamTest {
     }
 
     @Test
-    void shouldLogSlotUpdatesWithoutForwarding() {
+    void shouldIgnoreSlotUpdatesAndNeverForwardThemToConsumers() {
         // given
         stream = new YellowstoneTransactionStream(channel, parser, reconnectHandler, null);
         var txConsumer = new CopyOnWriteArrayList<SolanaTransaction>();

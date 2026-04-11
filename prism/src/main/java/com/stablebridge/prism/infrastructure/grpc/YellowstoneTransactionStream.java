@@ -15,7 +15,6 @@ import com.stablebridge.prism.domain.port.TransactionStream;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.CommitmentLevel;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.GeyserGrpc;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequest;
-import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestFilterSlots;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestFilterTransactions;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestPing;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdate;
@@ -30,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 public class YellowstoneTransactionStream implements TransactionStream {
 
     static final String TRANSACTIONS_FILTER_KEY = "all";
-    static final String SLOTS_FILTER_KEY = "slots";
     static final Metadata.Key<String> X_TOKEN_HEADER =
             Metadata.Key.of("x-token", Metadata.ASCII_STRING_MARSHALLER);
 
@@ -147,10 +145,8 @@ public class YellowstoneTransactionStream implements TransactionStream {
         var txFilter = SubscribeRequestFilterTransactions.newBuilder()
                 .setVote(false)
                 .build();
-        var slotFilter = SubscribeRequestFilterSlots.newBuilder().build();
         return SubscribeRequest.newBuilder()
                 .putTransactions(TRANSACTIONS_FILTER_KEY, txFilter)
-                .putSlots(SLOTS_FILTER_KEY, slotFilter)
                 .setCommitment(CommitmentLevel.CONFIRMED)
                 .build();
     }
@@ -187,7 +183,6 @@ public class YellowstoneTransactionStream implements TransactionStream {
         public void onNext(SubscribeUpdate update) {
             switch (update.getUpdateOneofCase()) {
                 case TRANSACTION -> handleTransaction(update);
-                case SLOT -> log.info("[SLOT] {}", update.getSlot().getSlot());
                 case PING -> respondToPing();
                 default -> {}
             }
