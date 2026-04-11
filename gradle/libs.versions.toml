@@ -1,7 +1,7 @@
 [versions]
 helidon = "4.2.2"
 avaje-inject = "11.4"
-pgjdbc = "42.7.7"
+pgjdbc = "42.7.10"
 hikari = "6.3.3"
 jackson = "2.19.0"
 mapstruct = "1.6.3"
