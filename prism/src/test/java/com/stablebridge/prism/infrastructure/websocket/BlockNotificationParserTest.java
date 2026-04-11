@@ -21,6 +21,7 @@ import com.stablebridge.prism.domain.model.Account;
 import com.stablebridge.prism.domain.model.Pubkey;
 import com.stablebridge.prism.domain.model.Signature;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
+import com.stablebridge.prism.domain.solana.SolanaAddress;
 import com.stablebridge.prism.infrastructure.grpc.TransactionParser;
 
 class BlockNotificationParserTest {
@@ -74,8 +75,8 @@ class BlockNotificationParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo(null)
-                .from(new Pubkey(BlockNotificationParser.truncateAddress(LONG_SENDER)))
-                .to(new Pubkey(BlockNotificationParser.truncateAddress(LONG_RECEIVER)))
+                .from(new Pubkey(SolanaAddress.truncate(LONG_SENDER)))
+                .to(new Pubkey(SolanaAddress.truncate(LONG_RECEIVER)))
                 .build();
         assertThat(result).usingRecursiveComparison().isEqualTo(List.of(expected));
     }
@@ -126,8 +127,8 @@ class BlockNotificationParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("hello solana")
-                .from(new Pubkey(BlockNotificationParser.truncateAddress(LONG_SENDER)))
-                .to(new Pubkey(BlockNotificationParser.truncateAddress(LONG_RECEIVER)))
+                .from(new Pubkey(SolanaAddress.truncate(LONG_SENDER)))
+                .to(new Pubkey(SolanaAddress.truncate(LONG_RECEIVER)))
                 .build();
         assertThat(result).usingRecursiveComparison().isEqualTo(List.of(expected));
     }
@@ -181,8 +182,8 @@ class BlockNotificationParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("deep memo")
-                .from(new Pubkey(BlockNotificationParser.truncateAddress(LONG_SENDER)))
-                .to(new Pubkey(BlockNotificationParser.truncateAddress(LONG_RECEIVER)))
+                .from(new Pubkey(SolanaAddress.truncate(LONG_SENDER)))
+                .to(new Pubkey(SolanaAddress.truncate(LONG_RECEIVER)))
                 .build();
         assertThat(result).usingRecursiveComparison().isEqualTo(List.of(expected));
     }
@@ -271,8 +272,8 @@ class BlockNotificationParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(true)
                 .memo(null)
-                .from(new Pubkey(BlockNotificationParser.truncateAddress(LONG_SENDER)))
-                .to(new Pubkey(BlockNotificationParser.truncateAddress(LONG_RECEIVER)))
+                .from(new Pubkey(SolanaAddress.truncate(LONG_SENDER)))
+                .to(new Pubkey(SolanaAddress.truncate(LONG_RECEIVER)))
                 .build();
         assertThat(result).usingRecursiveComparison().isEqualTo(List.of(expected));
     }
@@ -333,30 +334,6 @@ class BlockNotificationParserTest {
 
         // then
         assertThat(result).isEmpty();
-    }
-
-    @Test
-    void shouldTruncateAddressLongerThan16Chars() {
-        // given
-        var address = "abcdefghijklmnopqrstuv";
-
-        // when
-        var result = BlockNotificationParser.truncateAddress(address);
-
-        // then
-        assertThat(result).isEqualTo("abcdefgh...opqrstuv");
-    }
-
-    @Test
-    void shouldNotTruncateShortAddress() {
-        // given
-        var address = "abcdefghijklmnop";
-
-        // when
-        var result = BlockNotificationParser.truncateAddress(address);
-
-        // then
-        assertThat(result).isEqualTo("abcdefghijklmnop");
     }
 
     @Test

@@ -1,4 +1,4 @@
-package com.stablebridge.prism.infrastructure.grpc;
+package com.stablebridge.prism.infrastructure.solana;
 
 import java.math.BigInteger;
 import java.util.Objects;

@@ -29,6 +29,7 @@ import com.stablebridge.prism.domain.model.Account;
 import com.stablebridge.prism.domain.model.Pubkey;
 import com.stablebridge.prism.domain.model.Signature;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
+import com.stablebridge.prism.domain.solana.SolanaAddress;
 
 class TransactionParserTest {
 
@@ -57,8 +58,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo(null)
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -84,8 +85,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo(null)
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -111,8 +112,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(6_000_000_000L, 9))
                 .failed(false)
                 .memo(null)
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -138,35 +139,11 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(6_000_000_000L, 9))
                 .failed(false)
                 .memo(null)
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
-    }
-
-    @Test
-    void shouldTruncateAddressLongerThan16Chars() {
-        // given
-        var address = "abcdefghijklmnopqrstuv";
-
-        // when
-        var result = TransactionParser.truncateAddress(address);
-
-        // then
-        assertThat(result).isEqualTo("abcdefgh...opqrstuv");
-    }
-
-    @Test
-    void shouldNotTruncateShortAddress() {
-        // given
-        var address = "abcdefghijklmnop";
-
-        // when
-        var result = TransactionParser.truncateAddress(address);
-
-        // then
-        assertThat(result).isEqualTo("abcdefghijklmnop");
     }
 
     @Test
@@ -191,8 +168,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("hello solana")
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -220,8 +197,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("deep memo")
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -249,8 +226,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("helloworld")
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -276,8 +253,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo(null)
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -303,8 +280,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(true)
                 .memo(null)
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -405,8 +382,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("hello v2")
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
@@ -434,8 +411,8 @@ class TransactionParserTest {
                 .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
                 .failed(false)
                 .memo("deep v2")
-                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
-                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
                 .build();
         assertThat(result).isPresent();
         assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);

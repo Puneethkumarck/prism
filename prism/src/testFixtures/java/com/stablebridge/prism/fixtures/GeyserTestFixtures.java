@@ -6,7 +6,6 @@ import java.util.HexFormat;
 import java.util.List;
 
 import com.google.protobuf.ByteString;
-import com.stablebridge.prism.infrastructure.grpc.Base58;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateTransaction;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateTransactionInfo;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.CompiledInstruction;
@@ -16,6 +15,7 @@ import com.stablebridge.prism.infrastructure.grpc.proto.solana.Message;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.Transaction;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.TransactionError;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.TransactionStatusMeta;
+import com.stablebridge.prism.infrastructure.solana.Base58;
 
 public final class GeyserTestFixtures {
 

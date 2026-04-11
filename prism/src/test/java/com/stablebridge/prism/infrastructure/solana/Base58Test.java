@@ -1,4 +1,4 @@
-package com.stablebridge.prism.infrastructure.grpc;
+package com.stablebridge.prism.infrastructure.solana;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

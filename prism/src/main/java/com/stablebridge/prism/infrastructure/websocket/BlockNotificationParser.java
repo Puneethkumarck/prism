@@ -1,5 +1,8 @@
 package com.stablebridge.prism.infrastructure.websocket;
 
+import static com.stablebridge.prism.domain.solana.SolanaAddress.LAMPORTS_PER_SOL_SCALE;
+import static com.stablebridge.prism.domain.solana.SolanaAddress.truncate;
+
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -13,20 +16,14 @@ import com.stablebridge.prism.domain.model.Account;
 import com.stablebridge.prism.domain.model.Pubkey;
 import com.stablebridge.prism.domain.model.Signature;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
-import com.stablebridge.prism.infrastructure.grpc.Base58;
+import com.stablebridge.prism.domain.solana.SolanaBalanceMath;
+import com.stablebridge.prism.domain.solana.SolanaPrograms;
+import com.stablebridge.prism.infrastructure.solana.Base58;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class BlockNotificationParser {
-
-    private static final String MEMO_V1_PROGRAM_ID = "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo";
-    private static final String MEMO_V2_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
-    private static final Set<String> MEMO_PROGRAM_IDS = Set.of(MEMO_V1_PROGRAM_ID, MEMO_V2_PROGRAM_ID);
-    private static final int TRUNCATION_THRESHOLD = 16;
-    private static final int TRUNCATION_PREFIX = 8;
-    private static final int TRUNCATION_SUFFIX = 8;
-    private static final int LAMPORTS_PER_SOL_SCALE = 9;
 
     public List<SolanaTransaction> parseBlock(JsonNode blockNotification) {
         if (blockNotification == null || blockNotification.isMissingNode() || blockNotification.isNull()) {
@@ -60,15 +57,6 @@ public class BlockNotificationParser {
         return List.copyOf(results);
     }
 
-    static String truncateAddress(String address) {
-        if (address.length() > TRUNCATION_THRESHOLD) {
-            return address.substring(0, TRUNCATION_PREFIX)
-                    + "..."
-                    + address.substring(address.length() - TRUNCATION_SUFFIX);
-        }
-        return address;
-    }
-
     private Optional<SolanaTransaction> parseTransaction(JsonNode txNode, long slot) {
         if (txNode == null || !txNode.isObject()) {
             return Optional.empty();
@@ -89,7 +77,7 @@ public class BlockNotificationParser {
         }
         var preBalances = readLongArray(meta.path("preBalances"));
         var postBalances = readLongArray(meta.path("postBalances"));
-        var balances = computeBalances(preBalances, postBalances, accountKeys.size());
+        var balances = SolanaBalanceMath.compute(preBalances, postBalances, accountKeys.size());
         var amount = BigDecimal.valueOf(balances.maxDecrease(), LAMPORTS_PER_SOL_SCALE);
         var from = resolvePubkey(accountKeys, balances.senderIndex());
         var to = resolvePubkey(accountKeys, balances.receiverIndex());
@@ -177,34 +165,11 @@ public class BlockNotificationParser {
         return !err.isMissingNode() && !err.isNull();
     }
 
-    private static BalanceWalk computeBalances(List<Long> preBalances, List<Long> postBalances, int accountKeyCount) {
-        var limit = Math.min(Math.min(preBalances.size(), postBalances.size()), accountKeyCount);
-        var maxDecrease = 0L;
-        var maxIncrease = 0L;
-        var senderIndex = -1;
-        var receiverIndex = -1;
-        for (var i = 0; i < limit; i++) {
-            var pre = preBalances.get(i);
-            var post = postBalances.get(i);
-            var decrease = Math.max(0L, pre - post);
-            var increase = Math.max(0L, post - pre);
-            if (decrease > maxDecrease) {
-                maxDecrease = decrease;
-                senderIndex = i;
-            }
-            if (increase > maxIncrease) {
-                maxIncrease = increase;
-                receiverIndex = i;
-            }
-        }
-        return new BalanceWalk(maxDecrease, senderIndex, receiverIndex);
-    }
-
     private static Pubkey resolvePubkey(List<String> accountKeys, int index) {
         if (index < 0 || index >= accountKeys.size()) {
             return null;
         }
-        return new Pubkey(truncateAddress(accountKeys.get(index)));
+        return new Pubkey(truncate(accountKeys.get(index)));
     }
 
     private static String extractMemo(JsonNode message, JsonNode meta, List<String> accountKeys) {
@@ -219,7 +184,7 @@ public class BlockNotificationParser {
     private static Set<Integer> memoProgramIndices(List<String> accountKeys) {
         var indices = new HashSet<Integer>();
         for (var i = 0; i < accountKeys.size(); i++) {
-            if (MEMO_PROGRAM_IDS.contains(accountKeys.get(i))) {
+            if (SolanaPrograms.isMemoProgram(accountKeys.get(i))) {
                 indices.add(i);
             }
         }
@@ -260,7 +225,7 @@ public class BlockNotificationParser {
             return false;
         }
         var programId = instruction.path("programId");
-        if (programId.isTextual() && MEMO_PROGRAM_IDS.contains(programId.asText())) {
+        if (programId.isTextual() && SolanaPrograms.isMemoProgram(programId.asText())) {
             return true;
         }
         var programIdIndex = instruction.path("programIdIndex");
@@ -299,6 +264,4 @@ public class BlockNotificationParser {
         var cleaned = raw.replace("\0", "");
         return cleaned.isEmpty() ? null : cleaned;
     }
-
-    private record BalanceWalk(long maxDecrease, int senderIndex, int receiverIndex) {}
 }
