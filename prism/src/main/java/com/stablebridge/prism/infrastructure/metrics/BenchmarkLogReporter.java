@@ -68,7 +68,11 @@ public class BenchmarkLogReporter {
                 Thread.currentThread().interrupt();
                 return;
             }
-            tick();
+            try {
+                tick();
+            } catch (RuntimeException e) {
+                log.warn("benchmark log tick failed", e);
+            }
         }
     }
 
@@ -94,12 +98,15 @@ public class BenchmarkLogReporter {
                 Files.createDirectories(parent);
             }
             var buffer = new StringBuilder();
-            if (!headerWritten) {
+            var needsHeader = !headerWritten;
+            if (needsHeader) {
                 buffer.append(HEADER).append(System.lineSeparator());
-                headerWritten = true;
             }
             buffer.append(line).append(System.lineSeparator());
             Files.writeString(logPath, buffer.toString(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            if (needsHeader) {
+                headerWritten = true;
+            }
         } catch (IOException e) {
             log.warn("failed to append benchmark log line to {}", logPath, e);
         }

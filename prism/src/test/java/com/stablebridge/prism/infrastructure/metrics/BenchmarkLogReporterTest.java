@@ -138,11 +138,12 @@ class BenchmarkLogReporterTest {
         reporter.tick();
 
         // then
+        var firstTps = (double) firstSnapshot.processed() / 300.0;
+        var secondTps = (double) (secondSnapshot.processed() - firstSnapshot.processed()) / 300.0;
+        var firstLine = BenchmarkLogReporter.formatLine(FIXED_INSTANT, firstTps, firstSnapshot);
+        var secondLine = BenchmarkLogReporter.formatLine(FIXED_INSTANT, secondTps, secondSnapshot);
         var lines = Files.readAllLines(logPath);
-        assertThat(lines).hasSize(3);
-        assertThat(lines.get(0)).isEqualTo(BenchmarkLogReporter.HEADER);
-        assertThat(lines.get(1)).contains("2026-04-06T19:54:15Z");
-        assertThat(lines.get(2)).contains("2026-04-06T19:54:15Z");
+        assertThat(lines).containsExactly(BenchmarkLogReporter.HEADER, firstLine, secondLine);
     }
 
     @Test
@@ -177,10 +178,12 @@ class BenchmarkLogReporterTest {
         reporter.tick();
 
         // then
+        var firstTps = (double) firstSnapshot.processed() / 300.0;
+        var secondTps = (double) (secondSnapshot.processed() - firstSnapshot.processed()) / 300.0;
+        var firstLine = BenchmarkLogReporter.formatLine(FIXED_INSTANT, firstTps, firstSnapshot);
+        var secondLine = BenchmarkLogReporter.formatLine(FIXED_INSTANT, secondTps, secondSnapshot);
         var lines = Files.readAllLines(logPath);
-        assertThat(lines).hasSize(3);
-        assertThat(lines.get(1)).contains("   0.33");
-        assertThat(lines.get(2)).contains("   0.67");
+        assertThat(lines).containsExactly(BenchmarkLogReporter.HEADER, firstLine, secondLine);
     }
 
     @Test
