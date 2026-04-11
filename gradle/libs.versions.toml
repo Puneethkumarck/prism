@@ -19,7 +19,7 @@ lombok = "1.18.44"
 logback = "1.5.32"
 logstash-logback = "9.0"
 jansi = "2.4.3"
-junit = "5.14.3"
+junit = "6.0.3"
 slf4j = "2.0.17"
 
 [libraries]
