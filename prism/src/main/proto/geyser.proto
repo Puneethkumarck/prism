@@ -4,6 +4,9 @@ import "google/protobuf/timestamp.proto";
 import public "solana-storage.proto";
 
 option go_package = "github.com/rpcpool/yellowstone-grpc/examples/golang/proto";
+option java_multiple_files = true;
+option java_package = "com.stablebridge.prism.infrastructure.grpc.proto.geyser";
+option java_outer_classname = "GeyserProto";
 
 package geyser;
 

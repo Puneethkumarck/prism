@@ -3,6 +3,9 @@ syntax = "proto3";
 package solana.storage.ConfirmedBlock;
 
 option go_package = "github.com/rpcpool/yellowstone-grpc/examples/golang/proto";
+option java_multiple_files = true;
+option java_package = "com.stablebridge.prism.infrastructure.grpc.proto.solana";
+option java_outer_classname = "SolanaStorageProto";
 
 message ConfirmedBlock {
     string previous_blockhash = 1;
