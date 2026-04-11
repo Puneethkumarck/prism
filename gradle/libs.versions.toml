@@ -14,6 +14,7 @@ mockito = "5.23.0"
 assertj = "3.27.7"
 awaitility = "4.3.0"
 protobuf = "4.34.1"
+grpc = "1.73.0"
 lombok = "1.18.44"
 logback = "1.5.32"
 logstash-logback = "8.1"
@@ -71,6 +72,12 @@ assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+grpc-api = { module = "io.grpc:grpc-api", version.ref = "grpc" }
+grpc-inprocess = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }
+grpc-testing = { module = "io.grpc:grpc-testing", version.ref = "grpc" }
 
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 
