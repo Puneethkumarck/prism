@@ -1,6 +1,7 @@
 package com.stablebridge.prism.domain.port;
 
 import com.stablebridge.prism.domain.model.BatchResult;
+import com.stablebridge.prism.domain.model.MetricsSnapshot;
 
 public interface MetricsRecorder {
 
@@ -11,4 +12,6 @@ public interface MetricsRecorder {
     void incrementReceived();
 
     void recordAccountsWritten(int count);
+
+    MetricsSnapshot snapshot();
 }
