@@ -80,6 +80,7 @@ dependencies {
 
     "integrationTestImplementation"(libs.testcontainers.junit5)
     "integrationTestImplementation"(libs.testcontainers.postgresql)
+    "integrationTestImplementation"(libs.helidon.webserver.grpc)
 }
 
 protobuf {

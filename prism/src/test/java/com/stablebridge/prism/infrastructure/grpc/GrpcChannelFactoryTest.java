@@ -97,13 +97,22 @@ class GrpcChannelFactoryTest {
     }
 
     @Test
-    void shouldConfigureTls() {
+    void shouldEnableTlsForHttpsEndpoint() {
         // when
         var config = GrpcChannelFactory.buildWebClient(SOME_ENDPOINT).prototype();
 
         // then
         assertThat(config.tls().enabled()).isTrue();
         assertThat(config.tls().prototype().trustAll()).isFalse();
+    }
+
+    @Test
+    void shouldDisableTlsForPlainHttpEndpoint() {
+        // when
+        var config = GrpcChannelFactory.buildWebClient("http://localhost:10000").prototype();
+
+        // then
+        assertThat(config.tls().enabled()).isFalse();
     }
 
     @Test
@@ -147,6 +156,20 @@ class GrpcChannelFactoryTest {
                 .orElseThrow(() -> new AssertionError("Http2ClientProtocolConfig was not attached"));
         assertThat(http2.initialWindowSize()).isEqualTo(8 * 1024 * 1024);
         assertThat(http2.maxFrameSize()).isEqualTo(1024 * 1024);
+    }
+
+    @Test
+    void shouldEnableHttp2PriorKnowledgeForPlaintextConnections() {
+        // when
+        var config = GrpcChannelFactory.buildWebClient(SOME_ENDPOINT).prototype();
+
+        // then
+        var http2 = config.protocolConfigs().stream()
+                .filter(Http2ClientProtocolConfig.class::isInstance)
+                .map(Http2ClientProtocolConfig.class::cast)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Http2ClientProtocolConfig was not attached"));
+        assertThat(http2.priorKnowledge()).isTrue();
     }
 
     @Test
