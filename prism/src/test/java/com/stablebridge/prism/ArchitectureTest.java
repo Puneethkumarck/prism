@@ -39,6 +39,6 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule infrastructureMustNotDependOnRouting =
             noClasses().that().resideInAPackage(BASE + ".infrastructure..")
-                    .should().dependOnClassesThat().resideInAPackage(BASE + ".application.routing..")
+                    .should().dependOnClassesThat().resideInAPackage(BASE + ".application.route..")
                     .allowEmptyShould(true);
 }
