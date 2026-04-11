@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,7 +32,9 @@ import com.stablebridge.prism.infrastructure.grpc.proto.geyser.CommitmentLevel;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.GeyserGrpc;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequest;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestFilterTransactions;
+import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestPing;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdate;
+import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdatePing;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateSlot;
 
 import io.grpc.ManagedChannel;
@@ -203,6 +205,28 @@ class YellowstoneTransactionStreamTest {
     }
 
     @Test
+    void shouldRespondWithPongOnServerPing() {
+        // given
+        stream = new YellowstoneTransactionStream(channel, parser, reconnectHandler, null);
+        stream.subscribe(tx -> {}, acct -> {});
+        await().atMost(5, SECONDS).until(() -> service.lastRequest() != null);
+        var expected = SubscribeRequest.newBuilder()
+                .setPing(SubscribeRequestPing.newBuilder().setId(1).build())
+                .build();
+
+        // when
+        service.send(SubscribeUpdate.newBuilder()
+                .setPing(SubscribeUpdatePing.getDefaultInstance())
+                .build());
+
+        // then
+        await().atMost(5, SECONDS)
+                .untilAsserted(() -> assertThat(service.lastRequest())
+                        .usingRecursiveComparison()
+                        .isEqualTo(expected));
+    }
+
+    @Test
     void shouldReconnectWithExponentialBackoffAfterStreamError() {
         // given
         var fixedNow = Instant.parse("2026-01-01T00:00:00Z");
@@ -240,7 +264,7 @@ class YellowstoneTransactionStreamTest {
     private static final class TestGeyserService extends GeyserGrpc.GeyserImplBase {
 
         private final AtomicInteger subscribeCount = new AtomicInteger();
-        private final ConcurrentLinkedQueue<SubscribeRequest> requests = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedDeque<SubscribeRequest> requests = new ConcurrentLinkedDeque<>();
         private final AtomicReference<StreamObserver<SubscribeUpdate>> current = new AtomicReference<>();
 
         @Override
@@ -266,7 +290,7 @@ class YellowstoneTransactionStreamTest {
         }
 
         SubscribeRequest lastRequest() {
-            return requests.peek();
+            return requests.peekLast();
         }
 
         int subscribeCount() {

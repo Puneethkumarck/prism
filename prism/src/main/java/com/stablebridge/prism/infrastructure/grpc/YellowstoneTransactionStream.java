@@ -68,8 +68,9 @@ public class YellowstoneTransactionStream implements TransactionStream {
         }
         var thread = Thread.ofVirtual()
                 .name("yellowstone-tx-stream")
-                .start(() -> runLoop(txConsumer, acctConsumer));
+                .unstarted(() -> runLoop(txConsumer, acctConsumer));
         loopThread.set(thread);
+        thread.start();
     }
 
     @Override
