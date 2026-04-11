@@ -11,6 +11,7 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 
 import com.stablebridge.prism.domain.model.BatchResult;
+import com.stablebridge.prism.domain.model.MetricsSnapshot;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -110,6 +111,34 @@ class MicrometerMetricsRecorderTest {
         assertThatThrownBy(() -> recorder.recordAccountsWritten(-1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("count");
+    }
+
+    @Test
+    void shouldExposeCounterSnapshot() {
+        // given
+        var registry = new SimpleMeterRegistry();
+        var recorder = new MicrometerMetricsRecorder(registry);
+        recorder.incrementReceived();
+        recorder.incrementReceived();
+        recorder.recordBatch(BatchResult.builder().written(5).failed(2).memos(1).transfers(1).build());
+        recorder.recordAccountsWritten(3);
+        recorder.recordSlot();
+
+        // when
+        var snapshot = recorder.snapshot();
+
+        // then
+        var expected = MetricsSnapshot.builder()
+                .received(2L)
+                .written(5L)
+                .failed(2L)
+                .memos(1L)
+                .transfers(1L)
+                .accountsWritten(3L)
+                .batches(1L)
+                .slots(1L)
+                .build();
+        assertThat(snapshot).usingRecursiveComparison().isEqualTo(expected);
     }
 
     private Map<String, Double> snapshot(MeterRegistry registry) {

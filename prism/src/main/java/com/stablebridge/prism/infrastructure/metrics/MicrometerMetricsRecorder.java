@@ -3,6 +3,7 @@ package com.stablebridge.prism.infrastructure.metrics;
 import javax.inject.Singleton;
 
 import com.stablebridge.prism.domain.model.BatchResult;
+import com.stablebridge.prism.domain.model.MetricsSnapshot;
 import com.stablebridge.prism.domain.port.MetricsRecorder;
 
 import io.avaje.inject.External;
@@ -73,5 +74,19 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
             throw new IllegalArgumentException("count must not be negative");
         }
         accountsWritten.increment(count);
+    }
+
+    @Override
+    public MetricsSnapshot snapshot() {
+        return MetricsSnapshot.builder()
+                .received((long) txReceived.count())
+                .written((long) txWritten.count())
+                .failed((long) txFailed.count())
+                .memos((long) txMemo.count())
+                .transfers((long) txTransfer.count())
+                .accountsWritten((long) accountsWritten.count())
+                .batches((long) batches.count())
+                .slots((long) slots.count())
+                .build();
     }
 }
