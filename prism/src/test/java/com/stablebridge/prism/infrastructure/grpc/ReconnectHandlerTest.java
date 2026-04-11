@@ -13,12 +13,11 @@ class ReconnectHandlerTest {
         // given
         var handler = new ReconnectHandler();
 
-        // when/then
-        assertThat(handler.nextDelay()).isEqualTo(4L);
-        assertThat(handler.nextDelay()).isEqualTo(8L);
-        assertThat(handler.nextDelay()).isEqualTo(16L);
-        assertThat(handler.nextDelay()).isEqualTo(30L);
-        assertThat(handler.nextDelay()).isEqualTo(30L);
+        // when
+        var delays = IntStream.range(0, 5).mapToObj(_ -> handler.nextDelay()).toList();
+
+        // then
+        assertThat(delays).containsExactly(4L, 8L, 16L, 30L, 30L);
     }
 
     @Test

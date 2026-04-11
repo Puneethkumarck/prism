@@ -11,13 +11,13 @@ public class ReconnectHandler {
     private static final int MAX_ATTEMPT_EXPONENT = 4;
 
     private final ReentrantLock lock = new ReentrantLock();
-    private int attempt;
+    private long attempt;
 
     public long nextDelay() {
         lock.lock();
         try {
             attempt++;
-            var exponent = Math.min(attempt, MAX_ATTEMPT_EXPONENT);
+            var exponent = (int) Math.min(attempt, MAX_ATTEMPT_EXPONENT);
             var delay = RECONNECT_BASE_SECS * (1L << exponent);
             return Math.min(delay, RECONNECT_MAX_SECS);
         } finally {
