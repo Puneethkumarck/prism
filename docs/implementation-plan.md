@@ -227,6 +227,25 @@ Batch 3a (needs Batch 2): SOL-24
 Batch 3b (needs SOL-23, parallel with 3a): SOL-24b, SOL-24c
 ```
 
+#### Known spec deviation — HTTP/2 connection-level window (SOL-21)
+
+The SOL-21 spec calls for an 8 MiB HTTP/2 window at **both stream and connection** level.
+`GrpcChannelFactory` applies the 8 MiB **stream** window via
+`Http2ClientProtocolConfig.initialWindowSize`, but Helidon 4.4.1 does not expose the
+**connection-level** window on its `Http2ClientProtocolConfig` API. The full blueprint
+surface is `initialWindowSize`, `maxFrameSize`, `maxHeaderListSize`, `priorKnowledge`,
+`ping`, `pingTimeout`, and `flowControlBlockTimeout` — nothing for the connection window.
+
+Per RFC 7540 §6.9.2, the HTTP/2 connection window defaults to 64 KiB. Helidon's HTTP/2
+client emits `WINDOW_UPDATE` frames at the connection level as data is consumed, so in
+practice throughput is gated by consumption speed rather than a static 64 KiB cap. Until
+we observe sustained backpressure on the Yellowstone stream (and can tie it to the
+connection window specifically), the stream-level 8 MiB cap is the dominant control.
+
+Action if this ever bites: revisit once Helidon exposes `connectionWindowSize` (track via
+the Helidon changelog), or drop to a custom `ClientConnectionProvider` implementation.
+Tracked in #76.
+
 ---
 
 ### Phase 4: Infrastructure — Metrics & Console
