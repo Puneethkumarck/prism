@@ -151,9 +151,20 @@ class TransactionRoutesIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(200);
         var page = objectMapper.readValue(
                 response.body(), new TypeReference<Page<TransactionResponse>>() {});
-        assertThat(page.total()).isEqualTo(1L);
-        assertThat(page.data()).hasSize(1);
-        assertThat(page.data().get(0).success()).isTrue();
+        var expected = Page.<TransactionResponse>builder()
+                .data(List.of(TransactionResponse.builder()
+                        .signature("5Kx7aEwMbITSuccess0001")
+                        .slot(280_000_000L)
+                        .success(true)
+                        .build()))
+                .total(1L)
+                .limit(50L)
+                .offset(0L)
+                .build();
+        assertThat(page)
+                .usingRecursiveComparison()
+                .ignoringFieldsOfTypes(java.time.Instant.class)
+                .isEqualTo(expected);
     }
 
     @Test
@@ -212,6 +223,23 @@ class TransactionRoutesIntegrationTest {
                 HttpRequest.newBuilder(URI.create(
                                 "http://localhost:" + server.port()
                                         + "/api/transactions?limit=notanumber"))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        // then
+        assertThat(response.statusCode()).isEqualTo(400);
+    }
+
+    @Test
+    void shouldReturn400WhenOffsetNegative() throws Exception {
+        // given — no data required
+
+        // when
+        var response = client.send(
+                HttpRequest.newBuilder(URI.create(
+                                "http://localhost:" + server.port()
+                                        + "/api/transactions?offset=-1"))
                         .GET()
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
