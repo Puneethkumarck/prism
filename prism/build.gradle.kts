@@ -13,6 +13,7 @@ dependencies {
     implementation(libs.helidon.webserver)
     implementation(libs.helidon.webserver.cors)
     implementation(libs.helidon.http.media.jackson)
+    implementation(libs.helidon.webclient.grpc)
 
     implementation(libs.avaje.inject)
     annotationProcessor(libs.avaje.inject.generator)
