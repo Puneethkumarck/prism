@@ -428,6 +428,83 @@ class BlockNotificationParserTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    void shouldSkipTransactionWhenMetaIsNull() throws Exception {
+        // given
+        var block = readBlock(
+                """
+                {
+                  "slot": 280000000,
+                  "transactions": [
+                    {
+                      "transaction": {
+                        "signatures": ["%s"],
+                        "message": {
+                          "accountKeys": [
+                            {"pubkey": "%s"},
+                            {"pubkey": "%s"}
+                          ],
+                          "instructions": []
+                        }
+                      },
+                      "meta": null
+                    }
+                  ]
+                }
+                """.formatted(SOME_SIGNATURE_BASE58, SOME_SENDER_PUBKEY_BASE58, SOME_RECEIVER_PUBKEY_BASE58));
+
+        // when
+        var result = parser.parseBlock(block);
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldTreatMissingErrFieldAsSuccessful() throws Exception {
+        // given
+        var block = readBlock(
+                """
+                {
+                  "slot": 280000000,
+                  "transactions": [
+                    {
+                      "transaction": {
+                        "signatures": ["%s"],
+                        "message": {
+                          "accountKeys": [
+                            {"pubkey": "%s"},
+                            {"pubkey": "%s"}
+                          ],
+                          "instructions": []
+                        }
+                      },
+                      "meta": {
+                        "fee": 5000,
+                        "preBalances": [5000000000, 0],
+                        "postBalances": [0, 5000000000]
+                      }
+                    }
+                  ]
+                }
+                """.formatted(SOME_SIGNATURE_BASE58, SOME_SENDER_PUBKEY_BASE58, SOME_RECEIVER_PUBKEY_BASE58));
+
+        // when
+        var result = parser.parseBlock(block);
+
+        // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo(null)
+                .from(new Pubkey(SolanaAddress.truncate(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(SolanaAddress.truncate(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
+        assertThat(result).usingRecursiveComparison().isEqualTo(List.of(expected));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("parityCases")
     void shouldProduceSameDomainObjectAsProtobufParser(String name, SubscribeUpdateTransaction protoTx, String jsonBlock)
@@ -508,7 +585,33 @@ class BlockNotificationParserTest {
                                 List.of(FIVE_SOL_LAMPORTS, 0L),
                                 List.of(0L, FIVE_SOL_LAMPORTS)),
                         jsonPureTransfer(
-                                SOME_SIGNATURE_BASE58, SOME_FEE_PAYER_PUBKEY_BASE58, SOME_RECEIVER_PUBKEY_BASE58)));
+                                SOME_SIGNATURE_BASE58, SOME_FEE_PAYER_PUBKEY_BASE58, SOME_RECEIVER_PUBKEY_BASE58)),
+                Arguments.of(
+                        "pure transfer with string-form accountKeys",
+                        txWithBalances(
+                                SOME_SLOT,
+                                SOME_SIGNATURE_BYTES,
+                                List.of(SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
+                                List.of(FIVE_SOL_LAMPORTS, 0L),
+                                List.of(0L, FIVE_SOL_LAMPORTS)),
+                        jsonPureTransferWithStringAccountKeys(
+                                SOME_SIGNATURE_BASE58, SOME_SENDER_PUBKEY_BASE58, SOME_RECEIVER_PUBKEY_BASE58)),
+                Arguments.of(
+                        "top-level memo transfer with string-form accountKeys",
+                        txWithTopLevelMemo(
+                                SOME_SLOT,
+                                SOME_SIGNATURE_BYTES,
+                                List.of(SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
+                                List.of(FIVE_SOL_LAMPORTS, 0L),
+                                List.of(0L, FIVE_SOL_LAMPORTS),
+                                MEMO_V1_PROGRAM_ID_BYTES,
+                                "string-form memo"),
+                        jsonTransferWithTopLevelMemoStringAccountKeys(
+                                SOME_SIGNATURE_BASE58,
+                                SOME_SENDER_PUBKEY_BASE58,
+                                SOME_RECEIVER_PUBKEY_BASE58,
+                                SOME_MEMO_PROGRAM_ID,
+                                "string-form memo")));
     }
 
     private static String jsonTransferWithTopLevelMemo(
@@ -635,6 +738,59 @@ class BlockNotificationParserTest {
                   ]
                 }
                 """.formatted(signature, sender, receiver);
+    }
+
+    private static String jsonPureTransferWithStringAccountKeys(String signature, String sender, String receiver) {
+        return """
+                {
+                  "slot": 280000000,
+                  "transactions": [
+                    {
+                      "transaction": {
+                        "signatures": ["%s"],
+                        "message": {
+                          "accountKeys": ["%s", "%s"],
+                          "instructions": []
+                        }
+                      },
+                      "meta": {
+                        "err": null,
+                        "fee": 5000,
+                        "preBalances": [5000000000, 0],
+                        "postBalances": [0, 5000000000]
+                      }
+                    }
+                  ]
+                }
+                """.formatted(signature, sender, receiver);
+    }
+
+    private static String jsonTransferWithTopLevelMemoStringAccountKeys(
+            String signature, String sender, String receiver, String memoProgramId, String memoText) {
+        return """
+                {
+                  "slot": 280000000,
+                  "transactions": [
+                    {
+                      "transaction": {
+                        "signatures": ["%s"],
+                        "message": {
+                          "accountKeys": ["%s", "%s", "%s"],
+                          "instructions": [
+                            {"programId": "%s", "parsed": "%s"}
+                          ]
+                        }
+                      },
+                      "meta": {
+                        "err": null,
+                        "fee": 5000,
+                        "preBalances": [5000000000, 0, 0],
+                        "postBalances": [0, 5000000000, 0]
+                      }
+                    }
+                  ]
+                }
+                """.formatted(signature, sender, receiver, memoProgramId, memoProgramId, memoText);
     }
 
     private JsonNode readBlock(String json) throws Exception {

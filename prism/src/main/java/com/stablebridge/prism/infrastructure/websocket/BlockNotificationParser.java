@@ -159,7 +159,12 @@ public class BlockNotificationParser {
         }
         var values = new ArrayList<Long>(node.size());
         for (var entry : node) {
-            values.add(entry.isNumber() ? entry.asLong() : 0L);
+            if (entry.isNumber()) {
+                values.add(entry.asLong());
+            } else {
+                log.debug("non-numeric balance entry at index {}: {}", values.size(), entry);
+                values.add(0L);
+            }
         }
         return List.copyOf(values);
     }
