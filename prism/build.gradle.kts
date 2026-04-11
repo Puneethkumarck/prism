@@ -1,3 +1,5 @@
+import com.google.protobuf.gradle.id
+
 plugins {
     id("prism.service")
     id("com.google.protobuf")
@@ -31,6 +33,9 @@ dependencies {
     implementation(libs.flyway.postgresql)
 
     implementation(libs.protobuf.java)
+    implementation(libs.grpc.stub)
+    implementation(libs.grpc.protobuf)
+    implementation(libs.grpc.api)
 
     implementation(libs.resilience4j.retry)
 
@@ -59,6 +64,8 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.awaitility)
     testImplementation(libs.archunit.junit5)
+    testImplementation(libs.grpc.inprocess)
+    testImplementation(libs.grpc.testing)
 
     testFixturesImplementation(platform(libs.testcontainers.bom))
     testFixturesImplementation(platform(libs.junit.bom))
@@ -78,5 +85,19 @@ dependencies {
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+    plugins {
+        id("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:${libs.versions.grpc.get()}"
+        }
+    }
+    generateProtoTasks {
+        all().configureEach {
+            plugins {
+                id("grpc") {
+                    option("@generated=omit")
+                }
+            }
+        }
     }
 }
