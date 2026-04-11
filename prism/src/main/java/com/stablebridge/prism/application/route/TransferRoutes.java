@@ -16,9 +16,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TransferRoutes implements HttpService {
 
-    private static final long DEFAULT_LIMIT = 50L;
-    private static final long DEFAULT_OFFSET = 0L;
-
     private final TransferRepository transferRepository;
     private final TransferResponseMapper mapper;
 
@@ -28,7 +25,7 @@ public class TransferRoutes implements HttpService {
     }
 
     Page<TransferResponse> listTransfers(long limit, long offset, BigDecimal minAmount) {
-        var clampedLimit = TransactionRoutes.clampLimit(limit);
+        var clampedLimit = PaginationLimits.clampLimit(limit);
         var data = transferRepository.findByMinAmount(minAmount, clampedLimit, offset).stream()
                 .map(mapper::toResponse)
                 .toList();
@@ -42,8 +39,8 @@ public class TransferRoutes implements HttpService {
     }
 
     private void listTransfers(ServerRequest req, ServerResponse res) {
-        var limit = req.query().first("limit").map(Long::parseLong).orElse(DEFAULT_LIMIT);
-        var offset = req.query().first("offset").map(Long::parseLong).orElse(DEFAULT_OFFSET);
+        var limit = req.query().first("limit").map(Long::parseLong).orElse(PaginationLimits.DEFAULT_LIMIT);
+        var offset = req.query().first("offset").map(Long::parseLong).orElse(PaginationLimits.DEFAULT_OFFSET);
         var minAmount = req.query().first("min_amount").map(BigDecimal::new).orElse(BigDecimal.ZERO);
         res.send(listTransfers(limit, offset, minAmount));
     }

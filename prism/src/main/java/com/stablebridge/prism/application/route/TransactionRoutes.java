@@ -18,11 +18,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TransactionRoutes implements HttpService {
 
-    private static final long DEFAULT_LIMIT = 50L;
-    private static final long MIN_LIMIT = 1L;
-    private static final long MAX_LIMIT = 500L;
-    private static final long DEFAULT_OFFSET = 0L;
-
     private final TransactionRepository transactionRepository;
     private final TransactionResponseMapper mapper;
 
@@ -34,7 +29,7 @@ public class TransactionRoutes implements HttpService {
     }
 
     Page<TransactionResponse> listTransactions(long limit, long offset, Boolean success) {
-        var clampedLimit = clampLimit(limit);
+        var clampedLimit = PaginationLimits.clampLimit(limit);
         var data = transactionRepository.findAll(clampedLimit, offset, success).stream()
                 .map(mapper::toResponse)
                 .toList();
@@ -63,13 +58,9 @@ public class TransactionRoutes implements HttpService {
                 .toList();
     }
 
-    static long clampLimit(long limit) {
-        return Math.max(MIN_LIMIT, Math.min(limit, MAX_LIMIT));
-    }
-
     private void listTransactions(ServerRequest req, ServerResponse res) {
-        var limit = req.query().first("limit").map(Long::parseLong).orElse(DEFAULT_LIMIT);
-        var offset = req.query().first("offset").map(Long::parseLong).orElse(DEFAULT_OFFSET);
+        var limit = req.query().first("limit").map(Long::parseLong).orElse(PaginationLimits.DEFAULT_LIMIT);
+        var offset = req.query().first("offset").map(Long::parseLong).orElse(PaginationLimits.DEFAULT_OFFSET);
         var success = req.query().first("success").map(Boolean::parseBoolean).orElse(null);
         res.send(listTransactions(limit, offset, success));
     }

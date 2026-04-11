@@ -14,9 +14,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class MemoRoutes implements HttpService {
 
-    private static final long DEFAULT_LIMIT = 50L;
-    private static final long DEFAULT_OFFSET = 0L;
-
     private final MemoRepository memoRepository;
     private final MemoResponseMapper mapper;
 
@@ -26,7 +23,7 @@ public class MemoRoutes implements HttpService {
     }
 
     Page<MemoResponse> listMemos(long limit, long offset) {
-        var clampedLimit = TransactionRoutes.clampLimit(limit);
+        var clampedLimit = PaginationLimits.clampLimit(limit);
         var data = memoRepository.findAll(clampedLimit, offset).stream()
                 .map(mapper::toResponse)
                 .toList();
@@ -40,8 +37,8 @@ public class MemoRoutes implements HttpService {
     }
 
     private void listMemos(ServerRequest req, ServerResponse res) {
-        var limit = req.query().first("limit").map(Long::parseLong).orElse(DEFAULT_LIMIT);
-        var offset = req.query().first("offset").map(Long::parseLong).orElse(DEFAULT_OFFSET);
+        var limit = req.query().first("limit").map(Long::parseLong).orElse(PaginationLimits.DEFAULT_LIMIT);
+        var offset = req.query().first("offset").map(Long::parseLong).orElse(PaginationLimits.DEFAULT_OFFSET);
         res.send(listMemos(limit, offset));
     }
 }
