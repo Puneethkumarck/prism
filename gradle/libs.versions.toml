@@ -1,6 +1,6 @@
 [versions]
 helidon = "4.4.1"
-avaje-inject = "11.6"
+avaje-inject = "12.5-javax"
 pgjdbc = "42.7.10"
 hikari = "6.3.3"
 jackson = "2.21.2"
