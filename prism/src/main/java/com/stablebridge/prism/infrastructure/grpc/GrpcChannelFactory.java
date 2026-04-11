@@ -1,5 +1,7 @@
 package com.stablebridge.prism.infrastructure.grpc;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Objects;
 
@@ -26,10 +28,7 @@ public final class GrpcChannelFactory {
     }
 
     static WebClient buildWebClient(String endpoint) {
-        Objects.requireNonNull(endpoint, "endpoint must not be null");
-        if (endpoint.isBlank()) {
-            throw new IllegalArgumentException("endpoint must not be blank");
-        }
+        var parsedEndpoint = parseEndpoint(endpoint);
 
         var http2Config = Http2ClientProtocolConfig.builder()
                 .initialWindowSize(INITIAL_WINDOW_SIZE)
@@ -41,7 +40,7 @@ public final class GrpcChannelFactory {
                 .build();
 
         return WebClient.builder()
-                .baseUri(endpoint)
+                .baseUri(parsedEndpoint)
                 .tls(Tls.builder().build())
                 .connectTimeout(CONNECT_TIMEOUT)
                 .keepAlive(true)
@@ -49,5 +48,23 @@ public final class GrpcChannelFactory {
                 .addProtocolConfig(http2Config)
                 .addProtocolConfig(grpcConfig)
                 .build();
+    }
+
+    private static URI parseEndpoint(String endpoint) {
+        Objects.requireNonNull(endpoint, "endpoint must not be null");
+        var trimmed = endpoint.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("endpoint must not be blank");
+        }
+        try {
+            var uri = new URI(trimmed);
+            if (uri.getScheme() == null || uri.getHost() == null) {
+                throw new IllegalArgumentException(
+                        "endpoint must be an absolute URI with a scheme and host: " + trimmed);
+            }
+            return uri;
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("endpoint is not a valid URI: " + trimmed, e);
+        }
     }
 }

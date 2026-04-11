@@ -43,6 +43,34 @@ class GrpcChannelFactoryTest {
     }
 
     @Test
+    void shouldRejectEndpointWithoutScheme() {
+        // when/then
+        assertThatThrownBy(() -> GrpcChannelFactory.create("localhost:10000"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("endpoint");
+    }
+
+    @Test
+    void shouldRejectMalformedEndpoint() {
+        // when/then
+        assertThatThrownBy(() -> GrpcChannelFactory.create("https://host:not-a-port"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("endpoint");
+    }
+
+    @Test
+    void shouldAcceptPlainHttpEndpointForLocalTesting() {
+        // given
+        var endpoint = "http://localhost:10000";
+
+        // when
+        var channel = GrpcChannelFactory.create(endpoint);
+
+        // then
+        assertThat(channel).isNotNull();
+    }
+
+    @Test
     void shouldConfigureBaseUriFromEndpoint() {
         // given
         var endpoint = SOME_ENDPOINT;
@@ -53,6 +81,19 @@ class GrpcChannelFactoryTest {
         // then
         assertThat(config.baseUri()).isPresent();
         assertThat(config.baseUri().get().toUri()).hasToString(endpoint + "/");
+    }
+
+    @Test
+    void shouldTrimWhitespaceFromEndpoint() {
+        // given
+        var endpoint = "  " + SOME_ENDPOINT + "  ";
+
+        // when
+        var config = GrpcChannelFactory.buildWebClient(endpoint).prototype();
+
+        // then
+        assertThat(config.baseUri()).isPresent();
+        assertThat(config.baseUri().get().toUri()).hasToString(SOME_ENDPOINT + "/");
     }
 
     @Test
