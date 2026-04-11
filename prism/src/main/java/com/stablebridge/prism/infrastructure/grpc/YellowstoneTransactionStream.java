@@ -2,6 +2,7 @@ package com.stablebridge.prism.infrastructure.grpc;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,11 +54,11 @@ public class YellowstoneTransactionStream implements TransactionStream {
             ReconnectHandler reconnectHandler,
             String xToken,
             Supplier<Instant> clock) {
-        this.channel = channel;
-        this.parser = parser;
-        this.reconnectHandler = reconnectHandler;
+        this.channel = Objects.requireNonNull(channel, "channel must not be null");
+        this.parser = Objects.requireNonNull(parser, "parser must not be null");
+        this.reconnectHandler = Objects.requireNonNull(reconnectHandler, "reconnectHandler must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.xToken = xToken;
-        this.clock = clock;
     }
 
     @Override
