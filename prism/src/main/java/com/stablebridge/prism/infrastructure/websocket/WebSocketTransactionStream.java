@@ -35,6 +35,9 @@ public class WebSocketTransactionStream implements TransactionStream {
 
     static final String VOTE_PROGRAM_ID = "Vote111111111111111111111111111111111111111";
 
+    static final Duration IDLE_TIMEOUT = Duration.ofSeconds(60);
+    static final long IDLE_CHECK_INTERVAL_SECONDS = 1L;
+
     private final URI endpoint;
     private final BlockNotificationParser parser;
     private final ReconnectHandler reconnectHandler;
@@ -85,14 +88,7 @@ public class WebSocketTransactionStream implements TransactionStream {
         if (!running.compareAndSet(true, false)) {
             return;
         }
-        var socket = currentSocket.getAndSet(null);
-        if (socket != null) {
-            try {
-                socket.sendClose(WebSocket.NORMAL_CLOSURE, "closed");
-            } catch (RuntimeException e) {
-                log.debug("ignored exception while closing websocket", e);
-            }
-        }
+        closeCurrentSocket();
         var thread = loopThread.getAndSet(null);
         if (thread != null) {
             thread.interrupt();
@@ -102,17 +98,20 @@ public class WebSocketTransactionStream implements TransactionStream {
     private void runLoop(Consumer<SolanaTransaction> txConsumer, Consumer<Account> acctConsumer) {
         while (running.get()) {
             var latch = new CountDownLatch(1);
+            var lastActivity = new AtomicReference<>(clock.get());
             var connectedAt = clock.get();
             try {
-                openConnection(txConsumer, acctConsumer, latch, connectedAt);
-                latch.await();
+                openConnection(txConsumer, acctConsumer, latch, connectedAt, lastActivity);
+                awaitWithIdleTimeout(latch, lastActivity);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                closeCurrentSocket();
                 return;
             } catch (RuntimeException e) {
                 log.warn("websocket subscribe attempt failed", e);
-                recordConnectedDuration(connectedAt);
             }
+            closeCurrentSocket();
+            recordConnectedDuration(connectedAt);
             if (!running.get()) {
                 return;
             }
@@ -127,12 +126,28 @@ public class WebSocketTransactionStream implements TransactionStream {
         }
     }
 
+    private void awaitWithIdleTimeout(CountDownLatch latch, AtomicReference<Instant> lastActivity)
+            throws InterruptedException {
+        while (running.get()) {
+            var done = latch.await(IDLE_CHECK_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            if (done) {
+                return;
+            }
+            var idleFor = Duration.between(lastActivity.get(), clock.get());
+            if (idleFor.compareTo(IDLE_TIMEOUT) >= 0) {
+                log.warn("no websocket frames received in {}s; forcing reconnect", idleFor.toSeconds());
+                return;
+            }
+        }
+    }
+
     private void openConnection(
             Consumer<SolanaTransaction> txConsumer,
             Consumer<Account> acctConsumer,
             CountDownLatch latch,
-            Instant connectedAt) {
-        var listener = new BlockSubscribeListener(txConsumer, acctConsumer, latch, connectedAt);
+            Instant connectedAt,
+            AtomicReference<Instant> lastActivity) {
+        var listener = new BlockSubscribeListener(txConsumer, acctConsumer, latch, connectedAt, lastActivity);
         var socket = webSocketFactory.connect(endpoint, listener).join();
         if (!running.get() || Thread.currentThread() != loopThread.get()) {
             try {
@@ -143,7 +158,23 @@ public class WebSocketTransactionStream implements TransactionStream {
             return;
         }
         currentSocket.set(socket);
-        socket.sendText(BLOCK_SUBSCRIBE_PAYLOAD, true);
+        socket.sendText(BLOCK_SUBSCRIBE_PAYLOAD, true).whenComplete((ws, error) -> {
+            if (error != null) {
+                log.warn("failed to send blockSubscribe payload", error);
+            }
+        });
+    }
+
+    private void closeCurrentSocket() {
+        var socket = currentSocket.getAndSet(null);
+        if (socket == null) {
+            return;
+        }
+        try {
+            socket.sendClose(WebSocket.NORMAL_CLOSURE, "closed");
+        } catch (RuntimeException e) {
+            log.debug("ignored exception while closing websocket", e);
+        }
     }
 
     private void recordConnectedDuration(Instant connectedAt) {
@@ -164,17 +195,20 @@ public class WebSocketTransactionStream implements TransactionStream {
         private final Consumer<Account> acctConsumer;
         private final CountDownLatch latch;
         private final Instant connectedAt;
+        private final AtomicReference<Instant> lastActivity;
         private final StringBuilder buffer = new StringBuilder();
 
         private BlockSubscribeListener(
                 Consumer<SolanaTransaction> txConsumer,
                 Consumer<Account> acctConsumer,
                 CountDownLatch latch,
-                Instant connectedAt) {
+                Instant connectedAt,
+                AtomicReference<Instant> lastActivity) {
             this.txConsumer = txConsumer;
             this.acctConsumer = acctConsumer;
             this.latch = latch;
             this.connectedAt = connectedAt;
+            this.lastActivity = lastActivity;
         }
 
         @Override
@@ -184,6 +218,7 @@ public class WebSocketTransactionStream implements TransactionStream {
 
         @Override
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            lastActivity.set(clock.get());
             buffer.append(data);
             if (last) {
                 var frame = buffer.toString();

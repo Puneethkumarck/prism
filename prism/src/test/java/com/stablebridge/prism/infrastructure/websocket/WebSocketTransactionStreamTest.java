@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -16,6 +17,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +60,8 @@ class WebSocketTransactionStreamTest {
         given(reconnectHandler.nextDelay()).willReturn(0L);
         objectMapper = new ObjectMapper();
         webSocket = mock(WebSocket.class);
+        given(webSocket.sendText(EXPECTED_SUBSCRIBE_PAYLOAD, true))
+                .willReturn(CompletableFuture.completedFuture(webSocket));
         listeners = new CopyOnWriteArrayList<>();
         factory = (uri, listener) -> {
             listeners.add(listener);
@@ -233,6 +238,7 @@ class WebSocketTransactionStreamTest {
         // then
         await().atMost(5, SECONDS).untilAsserted(() -> {
             assertThat(listeners).hasSizeGreaterThanOrEqualTo(2);
+            then(webSocket).should(atLeast(2)).sendText(EXPECTED_SUBSCRIBE_PAYLOAD, true);
             then(reconnectHandler).should(atLeastOnce()).nextDelay();
         });
     }
@@ -259,6 +265,64 @@ class WebSocketTransactionStreamTest {
         await().atMost(5, SECONDS)
                 .untilAsserted(() -> then(staleSocket).should().sendClose(WebSocket.NORMAL_CLOSURE, "closed"));
         then(staleSocket).should(never()).sendText(EXPECTED_SUBSCRIBE_PAYLOAD, true);
+    }
+
+    @Test
+    void shouldReconnectWhenConnectAttemptFails() {
+        // given
+        var failFirst = new AtomicBoolean(true);
+        factory = (uri, listener) -> {
+            if (failFirst.compareAndSet(true, false)) {
+                return CompletableFuture.failedFuture(new RuntimeException("connect refused"));
+            }
+            listeners.add(listener);
+            return CompletableFuture.completedFuture(webSocket);
+        };
+        stream = new WebSocketTransactionStream(
+                SOME_WS_URL, parser, reconnectHandler, factory, objectMapper, Instant::now);
+
+        // when
+        stream.subscribe(txCaptor::add, acctCaptor::add);
+
+        // then
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            assertThat(listeners).hasSize(1);
+            then(reconnectHandler).should(atLeastOnce()).nextDelay();
+            then(webSocket).should().sendText(EXPECTED_SUBSCRIBE_PAYLOAD, true);
+        });
+    }
+
+    @Test
+    void shouldSendCloseFrameWhenClosed() {
+        // given
+        stream.subscribe(txCaptor::add, acctCaptor::add);
+        await().atMost(5, SECONDS)
+                .untilAsserted(() -> then(webSocket).should().sendText(EXPECTED_SUBSCRIBE_PAYLOAD, true));
+
+        // when
+        stream.close();
+
+        // then
+        then(webSocket).should().sendClose(WebSocket.NORMAL_CLOSURE, "closed");
+    }
+
+    @Test
+    void shouldReconnectWhenIdleTimeoutExceeded() {
+        // given
+        var now = new AtomicReference<>(Instant.parse("2026-04-11T00:00:00Z"));
+        stream = new WebSocketTransactionStream(
+                SOME_WS_URL, parser, reconnectHandler, factory, objectMapper, now::get);
+        stream.subscribe(txCaptor::add, acctCaptor::add);
+        await().atMost(5, SECONDS).until(() -> !listeners.isEmpty());
+
+        // when
+        now.set(Instant.parse("2026-04-11T00:02:00Z"));
+
+        // then
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            assertThat(listeners).hasSizeGreaterThanOrEqualTo(2);
+            then(webSocket).should(atLeastOnce()).sendClose(WebSocket.NORMAL_CLOSURE, "closed");
+        });
     }
 
     private static String blockFrame(String blockValueJson) {
