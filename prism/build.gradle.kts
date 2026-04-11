@@ -79,6 +79,7 @@ dependencies {
     testFixturesImplementation(libs.protobuf.java)
     testFixturesImplementation(platform(libs.jackson.bom))
     testFixturesImplementation(libs.jackson.databind)
+    testFixturesImplementation(project(":prism-api"))
 
     "integrationTestImplementation"(libs.testcontainers.junit5)
     "integrationTestImplementation"(libs.testcontainers.postgresql)

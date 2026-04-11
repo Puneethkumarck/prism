@@ -2,6 +2,7 @@ package com.stablebridge.prism.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import com.stablebridge.prism.domain.model.Account;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
 import com.stablebridge.prism.fixtures.E2eBlockFixture;
 import com.stablebridge.prism.infrastructure.grpc.TransactionParser;
+import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateTransaction;
 import com.stablebridge.prism.infrastructure.websocket.BlockNotificationParser;
 
 class AdapterParityTest {
@@ -20,98 +22,113 @@ class AdapterParityTest {
     @Test
     void shouldProduceIdenticalDomainTransactionsFromBothAdapters() {
         // given
-        var grpcUpdates = E2eBlockFixture.grpcUpdates();
-        var webSocketBlock = E2eBlockFixture.webSocketBlockValue();
         var expected = E2eBlockFixture.expectedDomainTransactions();
 
         // when
-        var grpcTransactions = grpcUpdates.stream()
-                .map(grpcParser::parseTransaction)
-                .flatMap(Optional::stream)
-                .toList();
-        var webSocketTransactions = webSocketParser.parseBlock(webSocketBlock);
+        var parity = parseParity();
 
         // then
-        assertThat(grpcTransactions)
+        assertThat(parity.grpcTransactions())
                 .usingRecursiveComparison()
                 .isEqualTo(expected);
-        assertThat(webSocketTransactions)
+        assertThat(parity.webSocketTransactions())
                 .usingRecursiveComparison()
                 .isEqualTo(expected);
-        assertThat(grpcTransactions)
+        assertThat(parity.grpcTransactions())
                 .usingRecursiveComparison()
-                .isEqualTo(webSocketTransactions);
+                .isEqualTo(parity.webSocketTransactions());
     }
 
     @Test
     void shouldProduceIdenticalFeePayerAccountsFromBothAdapters() {
         // given
-        var grpcUpdates = E2eBlockFixture.grpcUpdates();
-        var webSocketBlock = E2eBlockFixture.webSocketBlockValue();
         var expected = E2eBlockFixture.expectedDomainFeePayers();
 
         // when
-        var grpcFeePayers = grpcUpdates.stream()
-                .map(grpcParser::extractFeePayer)
-                .flatMap(Optional::stream)
-                .toList();
-        var webSocketFeePayers = webSocketParser.extractFeePayers(webSocketBlock);
+        var parity = parseParity();
 
         // then
-        assertThat(grpcFeePayers)
+        assertThat(parity.grpcFeePayers())
                 .usingRecursiveComparison()
                 .isEqualTo(expected);
-        assertThat(webSocketFeePayers)
+        assertThat(parity.webSocketFeePayers())
                 .usingRecursiveComparison()
                 .isEqualTo(expected);
-        assertThat(grpcFeePayers)
+        assertThat(parity.grpcFeePayers())
                 .usingRecursiveComparison()
-                .isEqualTo(webSocketFeePayers);
+                .isEqualTo(parity.webSocketFeePayers());
     }
 
     @Test
-    void shouldClassifySuccessAndFailureConsistently() {
+    void shouldSplitTransactionsIntoTwoSuccessesAndOneFailureFromBothAdapters() {
         // given
-        var grpcUpdates = E2eBlockFixture.grpcUpdates();
-        var webSocketBlock = E2eBlockFixture.webSocketBlockValue();
+        var parity = parseParity();
 
         // when
-        var grpcFailed = grpcUpdates.stream()
-                .map(grpcParser::parseTransaction)
-                .flatMap(Optional::stream)
-                .filter(SolanaTransaction::failed)
-                .toList();
-        var webSocketFailed = webSocketParser.parseBlock(webSocketBlock).stream()
-                .filter(SolanaTransaction::failed)
-                .toList();
-        var grpcSuccessCount = grpcUpdates.stream()
-                .map(grpcParser::parseTransaction)
-                .flatMap(Optional::stream)
-                .filter(tx -> !tx.failed())
-                .count();
+        var counts = ClassificationCounts.of(parity);
 
         // then
-        assertThat(grpcFailed).hasSize(1);
-        assertThat(webSocketFailed)
-                .usingRecursiveComparison()
-                .isEqualTo(grpcFailed);
-        assertThat(grpcSuccessCount).isEqualTo(2L);
+        var expected = new ClassificationCounts(2L, 1L, 2L, 1L);
+        assertThat(counts).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldProduceDistinctFeePayersForAllThreeTransactions() {
         // given
-        var grpcUpdates = E2eBlockFixture.grpcUpdates();
+        var parity = parseParity();
 
         // when
-        var distinctPubkeys = grpcUpdates.stream()
-                .map(grpcParser::extractFeePayer)
-                .flatMap(Optional::stream)
+        var distinctPubkeys = parity.grpcFeePayers().stream()
                 .map(Account::pubkey)
                 .distinct()
                 .toList();
 
         // then
         assertThat(distinctPubkeys).hasSize(3);
+    }
+
+    private ParityResult parseParity() {
+        var grpcUpdates = E2eBlockFixture.grpcUpdates();
+        var webSocketBlock = E2eBlockFixture.webSocketBlockValue();
+        return new ParityResult(
+                parseGrpcTransactions(grpcUpdates),
+                parseGrpcFeePayers(grpcUpdates),
+                webSocketParser.parseBlock(webSocketBlock),
+                webSocketParser.extractFeePayers(webSocketBlock));
+    }
+
+    private List<SolanaTransaction> parseGrpcTransactions(List<SubscribeUpdateTransaction> updates) {
+        return updates.stream()
+                .map(grpcParser::parseTransaction)
+                .flatMap(Optional::stream)
+                .toList();
+    }
+
+    private List<Account> parseGrpcFeePayers(List<SubscribeUpdateTransaction> updates) {
+        return updates.stream()
+                .map(grpcParser::extractFeePayer)
+                .flatMap(Optional::stream)
+                .toList();
+    }
+
+    private record ParityResult(
+            List<SolanaTransaction> grpcTransactions,
+            List<Account> grpcFeePayers,
+            List<SolanaTransaction> webSocketTransactions,
+            List<Account> webSocketFeePayers) {}
+
+    private record ClassificationCounts(
+            long grpcSuccessCount,
+            long grpcFailedCount,
+            long webSocketSuccessCount,
+            long webSocketFailedCount) {
+
+        static ClassificationCounts of(ParityResult parity) {
+            return new ClassificationCounts(
+                    parity.grpcTransactions().stream().filter(tx -> !tx.failed()).count(),
+                    parity.grpcTransactions().stream().filter(SolanaTransaction::failed).count(),
+                    parity.webSocketTransactions().stream().filter(tx -> !tx.failed()).count(),
+                    parity.webSocketTransactions().stream().filter(SolanaTransaction::failed).count());
+        }
     }
 }
