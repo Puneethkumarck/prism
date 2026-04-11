@@ -24,11 +24,20 @@ class MicrometerMetricsRecorderTest {
     private static final String TX_MEMO = "indexer_tx_memo";
     private static final String TX_TRANSFER = "indexer_tx_transfer";
     private static final String ACCOUNTS_WRITTEN = "indexer_accounts_written";
+    private static final String ACCOUNTS_DROPPED = "indexer_accounts_dropped";
     private static final String SLOTS = "indexer_slots";
     private static final String BATCHES = "indexer_batches";
 
-    private static final List<String> ALL_COUNTERS =
-            List.of(TX_RECEIVED, TX_WRITTEN, TX_FAILED, TX_MEMO, TX_TRANSFER, ACCOUNTS_WRITTEN, SLOTS, BATCHES);
+    private static final List<String> ALL_COUNTERS = List.of(
+            TX_RECEIVED,
+            TX_WRITTEN,
+            TX_FAILED,
+            TX_MEMO,
+            TX_TRANSFER,
+            ACCOUNTS_WRITTEN,
+            ACCOUNTS_DROPPED,
+            SLOTS,
+            BATCHES);
 
     @Test
     void shouldIncrementAllCountersOnRecordBatch() {
@@ -114,6 +123,23 @@ class MicrometerMetricsRecorderTest {
     }
 
     @Test
+    void shouldIncrementAccountsDroppedCounter() {
+        // given
+        var registry = new SimpleMeterRegistry();
+        var recorder = new MicrometerMetricsRecorder(registry);
+
+        // when
+        recorder.recordAccountDropped();
+        recorder.recordAccountDropped();
+        recorder.recordAccountDropped();
+
+        // then
+        var expected = zeroedSnapshot();
+        expected.put(ACCOUNTS_DROPPED, 3.0);
+        assertThat(snapshot(registry)).usingRecursiveComparison().isEqualTo(expected);
+    }
+
+    @Test
     void shouldExposeCounterSnapshot() {
         // given
         var registry = new SimpleMeterRegistry();
@@ -122,6 +148,8 @@ class MicrometerMetricsRecorderTest {
         recorder.incrementReceived();
         recorder.recordBatch(BatchResult.builder().written(5).failed(2).memos(1).transfers(1).build());
         recorder.recordAccountsWritten(3);
+        recorder.recordAccountDropped();
+        recorder.recordAccountDropped();
         recorder.recordSlot();
 
         // when
@@ -135,6 +163,7 @@ class MicrometerMetricsRecorderTest {
                 .memos(1L)
                 .transfers(1L)
                 .accountsWritten(3L)
+                .accountsDropped(2L)
                 .batches(1L)
                 .slots(1L)
                 .build();

@@ -24,10 +24,19 @@ class MetricsSnapshotTest {
                 .memos(7L)
                 .transfers(121L)
                 .accountsWritten(0L)
+                .accountsDropped(0L)
                 .batches(30L)
                 .slots(8L)
                 .build();
         assertThat(snapshot).usingRecursiveComparison().isEqualTo(expected);
+    }
+
+    @Test
+    void shouldRejectNegativeAccountsDropped() {
+        // when/then
+        assertThatThrownBy(() -> metricsSnapshotBuilder().accountsDropped(-1L).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("accountsDropped");
     }
 
     @Test

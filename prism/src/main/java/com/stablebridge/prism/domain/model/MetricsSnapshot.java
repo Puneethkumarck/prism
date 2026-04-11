@@ -10,6 +10,7 @@ public record MetricsSnapshot(
         long memos,
         long transfers,
         long accountsWritten,
+        long accountsDropped,
         long batches,
         long slots
 ) {
@@ -32,6 +33,9 @@ public record MetricsSnapshot(
         }
         if (accountsWritten < 0) {
             throw new IllegalArgumentException("accountsWritten must not be negative");
+        }
+        if (accountsDropped < 0) {
+            throw new IllegalArgumentException("accountsDropped must not be negative");
         }
         if (batches < 0) {
             throw new IllegalArgumentException("batches must not be negative");

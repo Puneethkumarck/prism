@@ -13,5 +13,7 @@ public interface MetricsRecorder {
 
     void recordAccountsWritten(int count);
 
+    void recordAccountDropped();
+
     MetricsSnapshot snapshot();
 }

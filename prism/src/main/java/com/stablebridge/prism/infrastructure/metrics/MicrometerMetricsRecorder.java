@@ -19,6 +19,7 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
     private final Counter txMemo;
     private final Counter txTransfer;
     private final Counter accountsWritten;
+    private final Counter accountsDropped;
     private final Counter slots;
     private final Counter batches;
 
@@ -40,6 +41,9 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
                 .register(registry);
         this.accountsWritten = Counter.builder("indexer_accounts_written")
                 .description("Fee-payer accounts upserted to the database")
+                .register(registry);
+        this.accountsDropped = Counter.builder("indexer_accounts_dropped")
+                .description("Fee-payer accounts dropped because the bounded queue was full")
                 .register(registry);
         this.slots = Counter.builder("indexer_slots")
                 .description("Slots observed from the stream")
@@ -77,6 +81,11 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
     }
 
     @Override
+    public void recordAccountDropped() {
+        accountsDropped.increment();
+    }
+
+    @Override
     public MetricsSnapshot snapshot() {
         return MetricsSnapshot.builder()
                 .received((long) txReceived.count())
@@ -85,6 +94,7 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
                 .memos((long) txMemo.count())
                 .transfers((long) txTransfer.count())
                 .accountsWritten((long) accountsWritten.count())
+                .accountsDropped((long) accountsDropped.count())
                 .batches((long) batches.count())
                 .slots((long) slots.count())
                 .build();
