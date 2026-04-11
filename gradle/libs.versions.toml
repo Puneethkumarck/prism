@@ -25,6 +25,7 @@ slf4j = "2.0.17"
 [libraries]
 helidon-webserver = { module = "io.helidon.webserver:helidon-webserver", version.ref = "helidon" }
 helidon-webserver-cors = { module = "io.helidon.webserver:helidon-webserver-cors", version.ref = "helidon" }
+helidon-webserver-grpc = { module = "io.helidon.webserver:helidon-webserver-grpc", version.ref = "helidon" }
 helidon-webserver-observe = { module = "io.helidon.webserver.observe:helidon-webserver-observe", version.ref = "helidon" }
 helidon-webserver-observe-metrics = { module = "io.helidon.webserver.observe:helidon-webserver-observe-metrics", version.ref = "helidon" }
 helidon-webclient = { module = "io.helidon.webclient:helidon-webclient", version.ref = "helidon" }

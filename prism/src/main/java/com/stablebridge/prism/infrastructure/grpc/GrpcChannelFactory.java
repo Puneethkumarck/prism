@@ -33,15 +33,20 @@ public final class GrpcChannelFactory {
         var http2Config = Http2ClientProtocolConfig.builder()
                 .initialWindowSize(INITIAL_WINDOW_SIZE)
                 .maxFrameSize(MAX_FRAME_SIZE)
+                .priorKnowledge(true)
                 .build();
 
         var grpcConfig = GrpcClientProtocolConfig.builder()
                 .heartbeatPeriod(KEEPALIVE_TIMEOUT)
                 .build();
 
+        var tls = Tls.builder()
+                .enabled("https".equalsIgnoreCase(parsedEndpoint.getScheme()))
+                .build();
+
         return WebClient.builder()
                 .baseUri(parsedEndpoint)
-                .tls(Tls.builder().build())
+                .tls(tls)
                 .connectTimeout(CONNECT_TIMEOUT)
                 .keepAlive(true)
                 .socketOptions(socket -> socket.socketKeepAlive(true).tcpNoDelay(true))
