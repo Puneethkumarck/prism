@@ -36,7 +36,7 @@ public class TransactionParser {
             return Optional.empty();
         }
         var txInfo = update.getTransaction();
-        if (!txInfo.hasMeta() || !txInfo.hasTransaction()) {
+        if (!txInfo.hasMeta() || !txInfo.hasTransaction() || !txInfo.getTransaction().hasMessage()) {
             return Optional.empty();
         }
         var message = txInfo.getTransaction().getMessage();
@@ -64,7 +64,7 @@ public class TransactionParser {
             return Optional.empty();
         }
         var txInfo = update.getTransaction();
-        if (!txInfo.hasMeta() || !txInfo.hasTransaction()) {
+        if (!txInfo.hasMeta() || !txInfo.hasTransaction() || !txInfo.getTransaction().hasMessage()) {
             return Optional.empty();
         }
         var message = txInfo.getTransaction().getMessage();

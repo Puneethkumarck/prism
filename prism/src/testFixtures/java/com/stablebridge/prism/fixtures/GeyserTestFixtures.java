@@ -57,6 +57,21 @@ public final class GeyserTestFixtures {
                 .build();
     }
 
+    public static SubscribeUpdateTransaction txWithoutMessage(long slot, byte[] sigBytes) {
+        var transaction = Transaction.newBuilder()
+                .addSignatures(ByteString.copyFrom(sigBytes))
+                .build();
+        var info = SubscribeUpdateTransactionInfo.newBuilder()
+                .setSignature(ByteString.copyFrom(sigBytes))
+                .setTransaction(transaction)
+                .setMeta(TransactionStatusMeta.newBuilder().build())
+                .build();
+        return SubscribeUpdateTransaction.newBuilder()
+                .setSlot(slot)
+                .setTransaction(info)
+                .build();
+    }
+
     public static SubscribeUpdateTransaction txWithBalances(
             long slot,
             byte[] sigBytes,

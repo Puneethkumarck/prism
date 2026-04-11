@@ -13,6 +13,7 @@ import static com.stablebridge.prism.fixtures.GeyserTestFixtures.failedTxWithBal
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithBalances;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithInnerMemo;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithTopLevelMemo;
+import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithoutMessage;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithoutMeta;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -101,9 +102,17 @@ class TransactionParserTest {
         var result = parser.parseTransaction(tx);
 
         // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(6_000_000_000L, 9))
+                .failed(false)
+                .memo(null)
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
         assertThat(result).isPresent();
-        assertThat(result.get().from())
-                .isEqualTo(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)));
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -120,9 +129,17 @@ class TransactionParserTest {
         var result = parser.parseTransaction(tx);
 
         // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(6_000_000_000L, 9))
+                .failed(false)
+                .memo(null)
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
         assertThat(result).isPresent();
-        assertThat(result.get().to())
-                .isEqualTo(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)));
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -165,8 +182,17 @@ class TransactionParserTest {
         var result = parser.parseTransaction(tx);
 
         // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo("hello solana")
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
         assertThat(result).isPresent();
-        assertThat(result.get().memo()).isEqualTo("hello solana");
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -185,8 +211,17 @@ class TransactionParserTest {
         var result = parser.parseTransaction(tx);
 
         // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo("deep memo")
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
         assertThat(result).isPresent();
-        assertThat(result.get().memo()).isEqualTo("deep memo");
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -205,8 +240,17 @@ class TransactionParserTest {
         var result = parser.parseTransaction(tx);
 
         // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo("helloworld")
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
         assertThat(result).isPresent();
-        assertThat(result.get().memo()).isEqualTo("helloworld");
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -223,8 +267,17 @@ class TransactionParserTest {
         var result = parser.parseTransaction(tx);
 
         // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo(null)
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
         assertThat(result).isPresent();
-        assertThat(result.get().memo()).isNull();
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -283,6 +336,18 @@ class TransactionParserTest {
     void shouldReturnEmptyWhenMetaMissing() {
         // given
         var tx = txWithoutMeta(SOME_SLOT, SOME_SIGNATURE_BYTES);
+
+        // when
+        var result = parser.parseTransaction(tx);
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldReturnEmptyWhenMessageMissing() {
+        // given
+        var tx = txWithoutMessage(SOME_SLOT, SOME_SIGNATURE_BYTES);
 
         // when
         var result = parser.parseTransaction(tx);
