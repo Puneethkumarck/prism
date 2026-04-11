@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 
 import java.net.http.WebSocket;
@@ -234,6 +235,30 @@ class WebSocketTransactionStreamTest {
             assertThat(listeners).hasSizeGreaterThanOrEqualTo(2);
             then(reconnectHandler).should(atLeastOnce()).nextDelay();
         });
+    }
+
+    @Test
+    void shouldDiscardStaleSocketWhenStreamClosedDuringConnect() {
+        // given
+        var pendingConnect = new CompletableFuture<WebSocket>();
+        var staleSocket = mock(WebSocket.class);
+        factory = (uri, listener) -> {
+            listeners.add(listener);
+            return pendingConnect;
+        };
+        stream = new WebSocketTransactionStream(
+                SOME_WS_URL, parser, reconnectHandler, factory, objectMapper, Instant::now);
+        stream.subscribe(txCaptor::add, acctCaptor::add);
+        await().atMost(5, SECONDS).until(() -> !listeners.isEmpty());
+        stream.close();
+
+        // when
+        pendingConnect.complete(staleSocket);
+
+        // then
+        await().atMost(5, SECONDS)
+                .untilAsserted(() -> then(staleSocket).should().sendClose(WebSocket.NORMAL_CLOSURE, "closed"));
+        then(staleSocket).should(never()).sendText(EXPECTED_SUBSCRIBE_PAYLOAD, true);
     }
 
     private static String blockFrame(String blockValueJson) {

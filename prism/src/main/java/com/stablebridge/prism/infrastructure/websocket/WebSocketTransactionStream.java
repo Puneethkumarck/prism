@@ -134,6 +134,14 @@ public class WebSocketTransactionStream implements TransactionStream {
             Instant connectedAt) {
         var listener = new BlockSubscribeListener(txConsumer, acctConsumer, latch, connectedAt);
         var socket = webSocketFactory.connect(endpoint, listener).join();
+        if (!running.get() || Thread.currentThread() != loopThread.get()) {
+            try {
+                socket.sendClose(WebSocket.NORMAL_CLOSURE, "closed");
+            } catch (RuntimeException e) {
+                log.debug("ignored exception while closing stale websocket", e);
+            }
+            return;
+        }
         currentSocket.set(socket);
         socket.sendText(BLOCK_SUBSCRIBE_PAYLOAD, true);
     }
