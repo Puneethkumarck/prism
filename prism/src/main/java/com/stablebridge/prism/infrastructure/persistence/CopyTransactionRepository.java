@@ -119,6 +119,12 @@ public class CopyTransactionRepository implements TransactionRepository {
 
     @Override
     public List<SolanaTransaction> findAll(long limit, long offset, Boolean success) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must be non-negative");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("offset must be non-negative");
+        }
         var sql = success != null ? FIND_ALL_BY_SUCCESS_SQL : FIND_ALL_SQL;
         try (var conn = readPool.getConnection();
                 var ps = conn.prepareStatement(sql)) {

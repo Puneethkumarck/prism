@@ -3,9 +3,10 @@ plugins {
 }
 
 dependencies {
-    implementation(platform(libs.jackson.bom))
+    api(platform(libs.jackson.bom))
 
-    implementation(libs.jackson.annotations)
+    api(libs.jackson.annotations)
+    api(libs.jackson.databind)
 
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)

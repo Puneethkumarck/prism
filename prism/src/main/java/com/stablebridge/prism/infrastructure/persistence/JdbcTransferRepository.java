@@ -58,6 +58,12 @@ public class JdbcTransferRepository implements TransferRepository {
 
     @Override
     public List<LargeTransfer> findByMinAmount(BigDecimal minAmount, long limit, long offset) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must be non-negative");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("offset must be non-negative");
+        }
         try (var conn = readPool.getConnection();
                 var ps = conn.prepareStatement(FIND_BY_MIN_AMOUNT_SQL)) {
             ps.setBigDecimal(1, minAmount);
