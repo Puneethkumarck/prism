@@ -37,7 +37,7 @@ make help                    # list all available targets
 | gRPC client | Helidon 4 SE gRPC | 4.4.0 |
 | DI | Avaje Inject | latest |
 | DB driver | pgjdbc | 42.7+ |
-| Connection pool | HikariCP x2 (write + read) | 6.x |
+| Connection pool | HikariCP x2 (write + read) | 7.x |
 | JSON | Jackson | 2.18+ |
 | Migrations | Flyway (standalone) | 12.x |
 | Resilience | Resilience4j | 2.3+ |
