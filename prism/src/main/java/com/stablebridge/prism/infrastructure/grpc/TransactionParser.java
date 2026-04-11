@@ -1,5 +1,8 @@
 package com.stablebridge.prism.infrastructure.grpc;
 
+import static com.stablebridge.prism.domain.solana.SolanaAddress.LAMPORTS_PER_SOL_SCALE;
+import static com.stablebridge.prism.domain.solana.SolanaAddress.truncate;
+
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -13,23 +16,20 @@ import com.stablebridge.prism.domain.model.Account;
 import com.stablebridge.prism.domain.model.Pubkey;
 import com.stablebridge.prism.domain.model.Signature;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
+import com.stablebridge.prism.domain.solana.SolanaBalanceMath;
+import com.stablebridge.prism.domain.solana.SolanaPrograms;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateTransaction;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.CompiledInstruction;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.InnerInstruction;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.InnerInstructions;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.Message;
 import com.stablebridge.prism.infrastructure.grpc.proto.solana.TransactionStatusMeta;
+import com.stablebridge.prism.infrastructure.solana.Base58;
 
 public class TransactionParser {
 
-    private static final String MEMO_V1_PROGRAM_ID = "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo";
-    private static final String MEMO_V2_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
-    private static final byte[] MEMO_V1_PROGRAM_ID_BYTES = Base58.decode(MEMO_V1_PROGRAM_ID);
-    private static final byte[] MEMO_V2_PROGRAM_ID_BYTES = Base58.decode(MEMO_V2_PROGRAM_ID);
-    private static final int TRUNCATION_THRESHOLD = 16;
-    private static final int TRUNCATION_PREFIX = 8;
-    private static final int TRUNCATION_SUFFIX = 8;
-    private static final int LAMPORTS_PER_SOL_SCALE = 9;
+    private static final byte[] MEMO_V1_PROGRAM_ID_BYTES = Base58.decode(SolanaPrograms.MEMO_V1_PROGRAM_ID);
+    private static final byte[] MEMO_V2_PROGRAM_ID_BYTES = Base58.decode(SolanaPrograms.MEMO_V2_PROGRAM_ID);
 
     public Optional<SolanaTransaction> parseTransaction(SubscribeUpdateTransaction update) {
         if (!update.hasTransaction()) {
@@ -43,7 +43,8 @@ public class TransactionParser {
         var meta = txInfo.getMeta();
         var signature = new Signature(Base58.encode(txInfo.getSignature().toByteArray()));
         var failed = meta.hasErr();
-        var balances = computeBalances(meta, message.getAccountKeysCount());
+        var balances = SolanaBalanceMath.compute(
+                meta.getPreBalancesList(), meta.getPostBalancesList(), message.getAccountKeysCount());
         var amount = BigDecimal.valueOf(balances.maxDecrease(), LAMPORTS_PER_SOL_SCALE);
         var from = resolvePubkey(message, balances.senderIndex());
         var to = resolvePubkey(message, balances.receiverIndex());
@@ -82,46 +83,12 @@ public class TransactionParser {
                 .build());
     }
 
-    static String truncateAddress(String address) {
-        if (address.length() > TRUNCATION_THRESHOLD) {
-            return address.substring(0, TRUNCATION_PREFIX)
-                    + "..."
-                    + address.substring(address.length() - TRUNCATION_SUFFIX);
-        }
-        return address;
-    }
-
-    private static BalanceWalk computeBalances(TransactionStatusMeta meta, int accountKeyCount) {
-        var preCount = meta.getPreBalancesCount();
-        var postCount = meta.getPostBalancesCount();
-        var limit = Math.min(Math.min(preCount, postCount), accountKeyCount);
-        var maxDecrease = 0L;
-        var maxIncrease = 0L;
-        var senderIndex = -1;
-        var receiverIndex = -1;
-        for (var i = 0; i < limit; i++) {
-            var pre = meta.getPreBalances(i);
-            var post = meta.getPostBalances(i);
-            var decrease = Math.max(0L, pre - post);
-            var increase = Math.max(0L, post - pre);
-            if (decrease > maxDecrease) {
-                maxDecrease = decrease;
-                senderIndex = i;
-            }
-            if (increase > maxIncrease) {
-                maxIncrease = increase;
-                receiverIndex = i;
-            }
-        }
-        return new BalanceWalk(maxDecrease, senderIndex, receiverIndex);
-    }
-
     private static Pubkey resolvePubkey(Message message, int index) {
         if (index < 0 || index >= message.getAccountKeysCount()) {
             return null;
         }
         var encoded = Base58.encode(message.getAccountKeys(index).toByteArray());
-        return new Pubkey(truncateAddress(encoded));
+        return new Pubkey(truncate(encoded));
     }
 
     private static String extractMemo(Message message, TransactionStatusMeta meta) {
@@ -185,6 +152,4 @@ public class TransactionParser {
         var decoded = new String(data, StandardCharsets.UTF_8).replace("\0", "");
         return decoded.isEmpty() ? null : decoded;
     }
-
-    private record BalanceWalk(long maxDecrease, int senderIndex, int receiverIndex) {}
 }
