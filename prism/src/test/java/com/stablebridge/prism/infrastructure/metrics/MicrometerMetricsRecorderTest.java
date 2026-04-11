@@ -2,6 +2,11 @@ package com.stablebridge.prism.infrastructure.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.junit.jupiter.api.Test;
 
 import com.stablebridge.prism.domain.model.BatchResult;
@@ -10,6 +15,18 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class MicrometerMetricsRecorderTest {
+
+    private static final String TX_RECEIVED = "indexer_tx_received";
+    private static final String TX_WRITTEN = "indexer_tx_written";
+    private static final String TX_FAILED = "indexer_tx_failed";
+    private static final String TX_MEMO = "indexer_tx_memo";
+    private static final String TX_TRANSFER = "indexer_tx_transfer";
+    private static final String ACCOUNTS_WRITTEN = "indexer_accounts_written";
+    private static final String SLOTS = "indexer_slots";
+    private static final String BATCHES = "indexer_batches";
+
+    private static final List<String> ALL_COUNTERS =
+            List.of(TX_RECEIVED, TX_WRITTEN, TX_FAILED, TX_MEMO, TX_TRANSFER, ACCOUNTS_WRITTEN, SLOTS, BATCHES);
 
     @Test
     void shouldIncrementAllCountersOnRecordBatch() {
@@ -22,9 +39,13 @@ class MicrometerMetricsRecorderTest {
         recorder.recordBatch(batch);
 
         // then
-        var expected = new CounterSnapshot(0, 5, 2, 1, 1, 0, 0, 1);
-        var actual = snapshot(registry);
-        assertThat(actual).usingRecursiveComparison().isEqualTo(expected);
+        var expected = zeroedSnapshot();
+        expected.put(TX_WRITTEN, 5.0);
+        expected.put(TX_FAILED, 2.0);
+        expected.put(TX_MEMO, 1.0);
+        expected.put(TX_TRANSFER, 1.0);
+        expected.put(BATCHES, 1.0);
+        assertThat(snapshot(registry)).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -39,9 +60,9 @@ class MicrometerMetricsRecorderTest {
         recorder.recordSlot();
 
         // then
-        var expected = new CounterSnapshot(0, 0, 0, 0, 0, 0, 3, 0);
-        var actual = snapshot(registry);
-        assertThat(actual).usingRecursiveComparison().isEqualTo(expected);
+        var expected = zeroedSnapshot();
+        expected.put(SLOTS, 3.0);
+        assertThat(snapshot(registry)).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -58,9 +79,9 @@ class MicrometerMetricsRecorderTest {
         recorder.incrementReceived();
 
         // then
-        var expected = new CounterSnapshot(5, 0, 0, 0, 0, 0, 0, 0);
-        var actual = snapshot(registry);
-        assertThat(actual).usingRecursiveComparison().isEqualTo(expected);
+        var expected = zeroedSnapshot();
+        expected.put(TX_RECEIVED, 5.0);
+        assertThat(snapshot(registry)).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
@@ -73,30 +94,24 @@ class MicrometerMetricsRecorderTest {
         recorder.recordAccountsWritten(10);
 
         // then
-        var expected = new CounterSnapshot(0, 0, 0, 0, 0, 10, 0, 0);
-        var actual = snapshot(registry);
-        assertThat(actual).usingRecursiveComparison().isEqualTo(expected);
+        var expected = zeroedSnapshot();
+        expected.put(ACCOUNTS_WRITTEN, 10.0);
+        assertThat(snapshot(registry)).usingRecursiveComparison().isEqualTo(expected);
     }
 
-    private CounterSnapshot snapshot(MeterRegistry registry) {
-        return new CounterSnapshot(
-                registry.counter("indexer_tx_received").count(),
-                registry.counter("indexer_tx_written").count(),
-                registry.counter("indexer_tx_failed").count(),
-                registry.counter("indexer_tx_memo").count(),
-                registry.counter("indexer_tx_transfer").count(),
-                registry.counter("indexer_accounts_written").count(),
-                registry.counter("indexer_slots").count(),
-                registry.counter("indexer_batches").count());
+    private Map<String, Double> snapshot(MeterRegistry registry) {
+        var result = new LinkedHashMap<String, Double>();
+        ALL_COUNTERS.forEach(name -> {
+            var counter = registry.find(name).counter();
+            Objects.requireNonNull(counter, "Counter not registered: " + name);
+            result.put(name, counter.count());
+        });
+        return result;
     }
 
-    private record CounterSnapshot(
-            double received,
-            double written,
-            double failed,
-            double memo,
-            double transfer,
-            double accountsWritten,
-            double slots,
-            double batches) {}
+    private Map<String, Double> zeroedSnapshot() {
+        var result = new LinkedHashMap<String, Double>();
+        ALL_COUNTERS.forEach(name -> result.put(name, 0.0));
+        return result;
+    }
 }

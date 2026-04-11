@@ -22,14 +22,30 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
     private final Counter batches;
 
     public MicrometerMetricsRecorder(@External MeterRegistry registry) {
-        this.txReceived = registry.counter("indexer_tx_received");
-        this.txWritten = registry.counter("indexer_tx_written");
-        this.txFailed = registry.counter("indexer_tx_failed");
-        this.txMemo = registry.counter("indexer_tx_memo");
-        this.txTransfer = registry.counter("indexer_tx_transfer");
-        this.accountsWritten = registry.counter("indexer_accounts_written");
-        this.slots = registry.counter("indexer_slots");
-        this.batches = registry.counter("indexer_batches");
+        this.txReceived = Counter.builder("indexer_tx_received")
+                .description("Transactions received from the stream adapter")
+                .register(registry);
+        this.txWritten = Counter.builder("indexer_tx_written")
+                .description("Successful transactions written to the database")
+                .register(registry);
+        this.txFailed = Counter.builder("indexer_tx_failed")
+                .description("Failed transactions recorded")
+                .register(registry);
+        this.txMemo = Counter.builder("indexer_tx_memo")
+                .description("Non-failed transactions containing a memo")
+                .register(registry);
+        this.txTransfer = Counter.builder("indexer_tx_transfer")
+                .description("Transactions classified as large transfers")
+                .register(registry);
+        this.accountsWritten = Counter.builder("indexer_accounts_written")
+                .description("Fee-payer accounts upserted to the database")
+                .register(registry);
+        this.slots = Counter.builder("indexer_slots")
+                .description("Slots observed from the stream")
+                .register(registry);
+        this.batches = Counter.builder("indexer_batches")
+                .description("Batches processed by the transaction pipeline")
+                .register(registry);
     }
 
     @Override
