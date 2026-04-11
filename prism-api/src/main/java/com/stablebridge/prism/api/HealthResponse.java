@@ -10,4 +10,10 @@ import lombok.Builder;
 public record HealthResponse(
         String status,
         long uptimeSecs
-) {}
+) {
+    public HealthResponse {
+        if (uptimeSecs < 0) {
+            throw new IllegalArgumentException("uptimeSecs must not be negative");
+        }
+    }
+}

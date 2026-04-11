@@ -22,11 +22,16 @@ class CorsConfigurationIntegrationTest {
     @BeforeAll
     static void startServer() {
         var healthRoutes = new HealthRoutes(Instant.now().getEpochSecond());
-        server = WebServer.builder()
+        var builtServer = WebServer.builder()
                 .port(0)
                 .routing(r -> r.register(CorsConfiguration.permissive()).register(healthRoutes))
-                .build()
-                .start();
+                .build();
+        try {
+            server = builtServer.start();
+        } catch (RuntimeException e) {
+            builtServer.stop();
+            throw e;
+        }
         client = HttpClient.newHttpClient();
     }
 

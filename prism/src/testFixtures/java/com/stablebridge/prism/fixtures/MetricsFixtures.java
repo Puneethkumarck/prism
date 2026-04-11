@@ -14,6 +14,7 @@ public final class MetricsFixtures {
                 .memos(7L)
                 .transfers(121L)
                 .accountsWritten(0L)
+                .accountsDropped(0L)
                 .batches(30L)
                 .slots(8L);
     }
@@ -27,6 +28,7 @@ public final class MetricsFixtures {
             .memos(0L)
             .transfers(0L)
             .accountsWritten(0L)
+            .accountsDropped(0L)
             .batches(0L)
             .slots(0L)
             .build();

@@ -60,12 +60,21 @@ public final class IndexerApplication {
         var config = IndexerConfig.fromEnv();
         var writePool = DataSourceFactory.createWritePool(config.databaseUrl());
         var readPool = DataSourceFactory.createReadPool(config.databaseUrl());
-        FlywayMigrator.migrate(writePool);
-        var stream = buildStream(config);
-        var lifecycle = start(config, writePool, readPool, stream);
+        IndexerLifecycle lifecycle;
+        try {
+            FlywayMigrator.migrate(writePool);
+            var stream = buildStream(config);
+            lifecycle = start(config, writePool, readPool, stream);
+        } catch (RuntimeException e) {
+            log.error("Prism indexer bootstrap failed; closing connection pools", e);
+            closeQuietly(writePool);
+            closeQuietly(readPool);
+            throw e;
+        }
+        var lifecycleRef = lifecycle;
         Runtime.getRuntime()
                 .addShutdownHook(Thread.ofPlatform().name("prism-shutdown").unstarted(() -> {
-                    lifecycle.stop();
+                    lifecycleRef.stop();
                     closeQuietly(writePool);
                     closeQuietly(readPool);
                 }));
@@ -97,49 +106,82 @@ public final class IndexerApplication {
                 new BenchmarkLogReporter(metricsRecorder, config.benchLog(), BENCHMARK_INTERVAL_SECS);
 
         var executor = Executors.newVirtualThreadPerTaskExecutor();
-        executor.submit(txBatchService::run);
-        executor.submit(acctBatchService::run);
-        executor.submit(benchmarkReporter::run);
+        executor.submit(supervise("transaction batch worker", txBatchService::run));
+        executor.submit(supervise("account batch worker", acctBatchService::run));
+        executor.submit(supervise("benchmark reporter", benchmarkReporter::run));
 
-        stream.subscribe(
-                tx -> {
-                    metricsRecorder.incrementReceived();
-                    txBatchService.enqueue(tx);
-                },
-                account -> {
-                    if (!acctBatchService.offer(account)) {
-                        log.debug("account queue full; dropping pubkey {}", account.pubkey().value());
-                    }
-                });
+        try {
+            var healthRoutes = new HealthRoutes(Instant.now().getEpochSecond());
+            var statsRoutes = new StatsRoutes(statsRepository, Mappers.getMapper(StatsResponseMapper.class));
+            var transactionRoutes = new TransactionRoutes(
+                    transactionRepository, Mappers.getMapper(TransactionResponseMapper.class));
+            var transferRoutes =
+                    new TransferRoutes(transferRepository, Mappers.getMapper(TransferResponseMapper.class));
+            var memoRoutes = new MemoRoutes(memoRepository, Mappers.getMapper(MemoResponseMapper.class));
+            var accountRoutes =
+                    new AccountRoutes(accountRepository, Mappers.getMapper(AccountResponseMapper.class));
 
-        var healthRoutes = new HealthRoutes(Instant.now().getEpochSecond());
-        var statsRoutes = new StatsRoutes(statsRepository, Mappers.getMapper(StatsResponseMapper.class));
-        var transactionRoutes = new TransactionRoutes(
-                transactionRepository, Mappers.getMapper(TransactionResponseMapper.class));
-        var transferRoutes = new TransferRoutes(transferRepository, Mappers.getMapper(TransferResponseMapper.class));
-        var memoRoutes = new MemoRoutes(memoRepository, Mappers.getMapper(MemoResponseMapper.class));
-        var accountRoutes = new AccountRoutes(accountRepository, Mappers.getMapper(AccountResponseMapper.class));
+            var server = WebServer.builder()
+                    .port(config.apiPort())
+                    .routing(r -> {
+                        r.register(CorsConfiguration.permissive())
+                                .register(healthRoutes)
+                                .register(statsRoutes)
+                                .register(transactionRoutes)
+                                .register(transferRoutes)
+                                .register(memoRoutes)
+                                .register(accountRoutes)
+                                .get("/metrics", (req, res) -> {
+                                    res.headers().contentType(MediaTypes.TEXT_PLAIN);
+                                    res.send(prometheusRegistry.scrape());
+                                });
+                        GlobalErrorHandler.register(r);
+                    })
+                    .build()
+                    .start();
 
-        var server = WebServer.builder()
-                .port(config.apiPort())
-                .routing(r -> {
-                    r.register(CorsConfiguration.permissive())
-                            .register(healthRoutes)
-                            .register(statsRoutes)
-                            .register(transactionRoutes)
-                            .register(transferRoutes)
-                            .register(memoRoutes)
-                            .register(accountRoutes)
-                            .get("/metrics", (req, res) -> {
-                                res.headers().contentType(MediaTypes.TEXT_PLAIN);
-                                res.send(prometheusRegistry.scrape());
-                            });
-                    GlobalErrorHandler.register(r);
-                })
-                .build()
-                .start();
+            stream.subscribe(
+                    tx -> {
+                        metricsRecorder.incrementReceived();
+                        txBatchService.enqueue(tx);
+                    },
+                    account -> {
+                        if (!acctBatchService.offer(account)) {
+                            metricsRecorder.recordAccountDropped();
+                            log.warn(
+                                    "account queue full; dropping pubkey {}",
+                                    account.pubkey().value());
+                        }
+                    });
 
-        return new IndexerLifecycle(server, executor, stream, txBatchService, acctBatchService);
+            return new IndexerLifecycle(
+                    server, executor, stream, txBatchService, acctBatchService, benchmarkReporter);
+        } catch (RuntimeException e) {
+            log.error("Prism indexer start failed; tearing down partially initialised components", e);
+            txBatchService.close();
+            acctBatchService.close();
+            benchmarkReporter.close();
+            executor.shutdownNow();
+            try {
+                stream.close();
+            } catch (RuntimeException closeError) {
+                log.warn("Failed to close stream during bootstrap cleanup", closeError);
+            }
+            throw e;
+        }
+    }
+
+    private static Runnable supervise(String taskName, Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                log.error("Worker task '{}' terminated abnormally", taskName, t);
+                if (t instanceof Error error) {
+                    throw error;
+                }
+            }
+        };
     }
 
     private static TransactionStream buildStream(IndexerConfig config) {

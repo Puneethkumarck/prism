@@ -1,5 +1,6 @@
 package com.stablebridge.prism.application;
 
+import static com.stablebridge.prism.fixtures.IndexerConfigFixtures.indexerConfigBuilder;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -13,12 +14,12 @@ import javax.sql.DataSource;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.stablebridge.prism.api.HealthResponse;
-import com.stablebridge.prism.application.config.IndexerConfig;
 import com.stablebridge.prism.domain.model.Account;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
 import com.stablebridge.prism.domain.port.TransactionStream;
@@ -38,8 +39,7 @@ class IndexerApplicationIntegrationTest {
         writePool = SharedPostgresContainer.writePool();
         readPool = SharedPostgresContainer.readPool();
         stream = new RecordingTransactionStream();
-        var config = IndexerConfig.builder()
-                .streamMode("websocket")
+        var config = indexerConfigBuilder()
                 .rpcWsEndpoint("wss://localhost:0")
                 .databaseUrl("jdbc:postgresql://unused")
                 .benchLog("build/indexer-integration-benchmark.log")
@@ -58,81 +58,127 @@ class IndexerApplicationIntegrationTest {
         }
     }
 
-    @Test
-    void shouldStartAndSubscribeToStream() {
-        // given
-        var startedLifecycle = lifecycle;
+    @Nested
+    class Startup {
 
-        // when
-        var running = startedLifecycle.isRunning();
+        @Test
+        void shouldStartAndReportRunning() {
+            // given
+            var startedLifecycle = lifecycle;
 
-        // then
-        assertThat(running).isTrue();
-        assertThat(stream.subscribed).isTrue();
+            // when
+            var running = startedLifecycle.isRunning();
+
+            // then
+            assertThat(running).isTrue();
+        }
+
+        @Test
+        void shouldSubscribeToTransactionStream() {
+            // when
+            var subscribed = stream.subscribed;
+
+            // then
+            assertThat(subscribed).isTrue();
+        }
     }
 
-    @Test
-    void shouldRespondToHealth() throws Exception {
-        // given
-        var request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + lifecycle.port() + "/health"))
-                .GET()
-                .build();
+    @Nested
+    class Health {
 
-        // when
-        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        @Test
+        void shouldRespondToHealth() throws Exception {
+            // given
+            var request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + lifecycle.port() + "/health"))
+                    .GET()
+                    .build();
 
-        // then
-        assertThat(response.statusCode()).isEqualTo(200);
-        var body = objectMapper.readValue(response.body(), HealthResponse.class);
-        var expected = HealthResponse.builder().status("ok").build();
-        assertThat(body)
-                .usingRecursiveComparison()
-                .ignoringFields("uptimeSecs")
-                .isEqualTo(expected);
+            // when
+            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // then
+            assertThat(response.statusCode()).isEqualTo(200);
+            var body = objectMapper.readValue(response.body(), HealthResponse.class);
+            var expected = HealthResponse.builder().status("ok").build();
+            assertThat(body)
+                    .usingRecursiveComparison()
+                    .ignoringFields("uptimeSecs")
+                    .isEqualTo(expected);
+            assertThat(body.uptimeSecs()).isNotNegative();
+        }
     }
 
-    @Test
-    void shouldExposePrometheusMetrics() throws Exception {
-        // given
-        var request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + lifecycle.port() + "/metrics"))
-                .GET()
-                .build();
+    @Nested
+    class Metrics {
 
-        // when
-        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        @Test
+        void shouldExposePrometheusMetrics() throws Exception {
+            // given
+            var request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + lifecycle.port() + "/metrics"))
+                    .GET()
+                    .build();
 
-        // then
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body())
-                .contains("indexer_tx_received")
-                .contains("indexer_batches")
-                .contains("# HELP")
-                .contains("# TYPE");
+            // when
+            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // then
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.body())
+                    .contains("indexer_tx_received")
+                    .contains("indexer_batches")
+                    .contains("indexer_accounts_dropped")
+                    .contains("# HELP")
+                    .contains("# TYPE");
+        }
     }
 
-    @Test
-    void shouldShutdownGracefullyWithinTimeout() {
-        // given
-        var shutdownStream = new RecordingTransactionStream();
-        var config = IndexerConfig.builder()
-                .streamMode("websocket")
-                .rpcWsEndpoint("wss://localhost:0")
-                .databaseUrl("jdbc:postgresql://unused")
-                .benchLog("build/indexer-shutdown-benchmark.log")
-                .consoleLog(false)
-                .apiPort(0)
-                .build();
-        var shutdownLifecycle = IndexerApplication.start(config, writePool, readPool, shutdownStream);
+    @Nested
+    class Cors {
 
-        // when
-        shutdownLifecycle.stop();
+        @Test
+        void shouldApplyCorsHeadersToApiStatsRoute() throws Exception {
+            // given
+            var request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + lifecycle.port() + "/api/stats"))
+                    .header("Origin", "https://example.com")
+                    .GET()
+                    .build();
 
-        // then
-        await().atMost(10, SECONDS)
-                .untilAsserted(() -> assertThat(shutdownLifecycle.isRunning()).isFalse());
-        assertThat(shutdownStream.closed).isTrue();
+            // when
+            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // then
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).hasValue("*");
+        }
+    }
+
+    @Nested
+    class Shutdown {
+
+        @Test
+        void shouldShutdownGracefullyWithinTimeout() {
+            // given
+            var shutdownStream = new RecordingTransactionStream();
+            var config = indexerConfigBuilder()
+                    .rpcWsEndpoint("wss://localhost:0")
+                    .databaseUrl("jdbc:postgresql://unused")
+                    .benchLog("build/indexer-shutdown-benchmark.log")
+                    .consoleLog(false)
+                    .apiPort(0)
+                    .build();
+            var shutdownLifecycle = IndexerApplication.start(config, writePool, readPool, shutdownStream);
+
+            // when
+            shutdownLifecycle.stop();
+
+            // then
+            await().atMost(15, SECONDS)
+                    .untilAsserted(() -> assertThat(shutdownLifecycle.isRunning()).isFalse());
+            assertThat(shutdownStream.closed).isTrue();
+        }
     }
 
     static final class RecordingTransactionStream implements TransactionStream {

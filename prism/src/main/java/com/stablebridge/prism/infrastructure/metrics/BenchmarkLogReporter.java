@@ -43,6 +43,7 @@ public class BenchmarkLogReporter {
     private final Clock clock;
     private final ReentrantLock lock = new ReentrantLock();
 
+    private volatile Thread worker;
     private long previousProcessed;
     private boolean headerWritten;
 
@@ -61,6 +62,7 @@ public class BenchmarkLogReporter {
     }
 
     public void run() {
+        worker = Thread.currentThread();
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 Thread.sleep(intervalSecs * 1000L);
@@ -73,6 +75,13 @@ public class BenchmarkLogReporter {
             } catch (RuntimeException e) {
                 log.warn("benchmark log tick failed", e);
             }
+        }
+    }
+
+    public void close() {
+        var t = worker;
+        if (t != null) {
+            t.interrupt();
         }
     }
 

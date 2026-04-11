@@ -25,6 +25,7 @@ public class TransactionBatchService {
     }
 
     public void enqueue(SolanaTransaction tx) {
+        Objects.requireNonNull(tx, "tx must not be null");
         queue.add(tx);
     }
 
@@ -38,20 +39,30 @@ public class TransactionBatchService {
                     buffer.add(tx);
                 }
                 if (buffer.size() >= BATCH_SIZE || (tx == null && !buffer.isEmpty())) {
-                    log.debug("Flushing batch of {} transactions", buffer.size());
-                    processor.process(List.copyOf(buffer));
-                    buffer.clear();
+                    flush(buffer);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
-        if (!buffer.isEmpty()) {
-            log.debug("Flushing remaining {} transactions", buffer.size());
-            processor.process(List.copyOf(buffer));
-        }
+        flush(buffer);
         log.info("TransactionBatchService stopped");
+    }
+
+    private void flush(List<SolanaTransaction> buffer) {
+        if (buffer.isEmpty()) {
+            return;
+        }
+        var size = buffer.size();
+        try {
+            log.debug("Flushing batch of {} transactions", size);
+            processor.process(List.copyOf(buffer));
+        } catch (Exception e) {
+            log.error("Failed to flush batch of {} transactions; dropping and continuing", size, e);
+        } finally {
+            buffer.clear();
+        }
     }
 
     public void close() {
