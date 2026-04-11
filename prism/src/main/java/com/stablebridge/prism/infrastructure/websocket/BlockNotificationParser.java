@@ -27,11 +27,13 @@ public class BlockNotificationParser {
 
     public List<SolanaTransaction> parseBlock(JsonNode blockNotification) {
         if (blockNotification == null || blockNotification.isMissingNode() || blockNotification.isNull()) {
+            log.warn("blockNotification is null or missing; returning no transactions");
             return List.of();
         }
         var slot = readSlot(blockNotification);
         var transactions = blockNotification.path("transactions");
         if (!transactions.isArray()) {
+            log.warn("blockNotification has no transactions array for slot {}", slot);
             return List.of();
         }
         var results = new ArrayList<SolanaTransaction>(transactions.size());
@@ -43,11 +45,13 @@ public class BlockNotificationParser {
 
     public List<Account> extractFeePayers(JsonNode blockNotification) {
         if (blockNotification == null || blockNotification.isMissingNode() || blockNotification.isNull()) {
+            log.warn("blockNotification is null or missing; returning no fee payers");
             return List.of();
         }
         var slot = readSlot(blockNotification);
         var transactions = blockNotification.path("transactions");
         if (!transactions.isArray()) {
+            log.warn("blockNotification has no transactions array for slot {}", slot);
             return List.of();
         }
         var results = new ArrayList<Account>(transactions.size());
