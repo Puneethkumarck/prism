@@ -2,7 +2,7 @@
 helidon = "4.4.1"
 avaje-inject = "11.6"
 pgjdbc = "42.7.10"
-hikari = "6.3.3"
+hikari = "7.0.2"
 jackson = "2.21.2"
 mapstruct = "1.6.3"
 flyway = "11.20.3"
