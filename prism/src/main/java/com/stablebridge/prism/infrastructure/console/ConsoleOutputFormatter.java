@@ -3,6 +3,7 @@ package com.stablebridge.prism.infrastructure.console;
 import java.io.PrintStream;
 import java.util.Objects;
 
+import com.stablebridge.prism.domain.model.Pubkey;
 import com.stablebridge.prism.domain.model.SolanaTransaction;
 import com.stablebridge.prism.domain.service.LargeTransferFilter;
 
@@ -42,9 +43,10 @@ public class ConsoleOutputFormatter {
         }
 
         var signature = truncateSignature(tx.signature().value());
+        var amount = tx.amount().toPlainString();
 
         if (tx.failed()) {
-            out.println(RED + "[TX]" + RESET + " " + signature + " " + tx.amount() + " SOL");
+            out.println(RED + "[TX]" + RESET + " " + signature + " " + amount + " SOL");
             return;
         }
 
@@ -56,12 +58,12 @@ public class ConsoleOutputFormatter {
         }
         if (isLarge) {
             out.println(YELLOW + "[TRANSFER]" + RESET
-                    + " From: " + addressValue(tx.from() != null ? tx.from().value() : null)
-                    + " To: " + addressValue(tx.to() != null ? tx.to().value() : null)
-                    + " Amount: " + tx.amount() + " SOL");
+                    + " From: " + addressOf(tx.from())
+                    + " To: " + addressOf(tx.to())
+                    + " Amount: " + amount + " SOL");
         }
         if (!hasMemo && !isLarge) {
-            out.println(WHITE + "[TX]" + RESET + " " + signature + " " + tx.amount() + " SOL");
+            out.println(WHITE + "[TX]" + RESET + " " + signature + " " + amount + " SOL");
         }
     }
 
@@ -74,7 +76,7 @@ public class ConsoleOutputFormatter {
                 + signature.substring(signature.length() - SIGNATURE_SUFFIX_LENGTH);
     }
 
-    private static String addressValue(String value) {
-        return value != null ? value : "?";
+    private static String addressOf(Pubkey pubkey) {
+        return pubkey != null ? pubkey.value() : "?";
     }
 }

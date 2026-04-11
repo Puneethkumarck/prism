@@ -134,12 +134,34 @@ class ConsoleOutputFormatterTest {
         formatter.printTransaction(tx);
 
         // then
-        var output = output();
-        assertThat(output).contains("[MEMO]");
-        assertThat(output).contains("payment note");
-        assertThat(output).contains("[TRANSFER]");
-        assertThat(output).contains(ConsoleOutputFormatter.MAGENTA);
-        assertThat(output).contains(ConsoleOutputFormatter.YELLOW);
+        assertThat(output()).contains(
+                "[MEMO]",
+                "payment note",
+                "[TRANSFER]",
+                ConsoleOutputFormatter.MAGENTA,
+                ConsoleOutputFormatter.YELLOW);
+    }
+
+    @Test
+    void shouldPrintTransferWithUnknownAddresses() {
+        // given
+        var tx = transactionBuilder()
+                .signature(new Signature("5Kx7aEwMbNullAddrTransfer"))
+                .amount(new BigDecimal("5.0"))
+                .from(null)
+                .to(null)
+                .build();
+        var formatter = new ConsoleOutputFormatter(true, stream);
+
+        // when
+        formatter.printTransaction(tx);
+
+        // then
+        assertThat(output()).contains(
+                "[TRANSFER]",
+                "From: ?",
+                "To: ?",
+                "Amount: 5.0 SOL");
     }
 
     @Test
