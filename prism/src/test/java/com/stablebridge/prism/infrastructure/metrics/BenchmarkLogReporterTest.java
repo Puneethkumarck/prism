@@ -116,6 +116,27 @@ class BenchmarkLogReporterTest {
     }
 
     @Test
+    void shouldNotAdvanceBaselineOrHeaderFlagWhenAppendFails(@TempDir Path tempDir) throws Exception {
+        // given
+        var blocker = Files.createFile(tempDir.resolve("not-a-directory"));
+        var logPath = blocker.resolve("benchmark.log");
+        var snapshot = metricsSnapshotBuilder().build();
+        given(metricsRecorder.snapshot()).willReturn(snapshot);
+        var reporter = new BenchmarkLogReporter(metricsRecorder, logPath, 300L, Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC));
+
+        // when
+        reporter.tick();
+        Files.delete(blocker);
+        reporter.tick();
+
+        // then
+        var expectedTps = (double) snapshot.processed() / 300.0;
+        var expectedLine = BenchmarkLogReporter.formatLine(FIXED_INSTANT, expectedTps, snapshot);
+        var lines = Files.readAllLines(logPath);
+        assertThat(lines).containsExactly(BenchmarkLogReporter.HEADER, expectedLine);
+    }
+
+    @Test
     void shouldAppendLineWithoutRepeatingHeaderOnSubsequentTicks(@TempDir Path tempDir) throws Exception {
         // given
         var logPath = tempDir.resolve("benchmark.log");

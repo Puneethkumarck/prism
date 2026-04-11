@@ -82,16 +82,17 @@ public class BenchmarkLogReporter {
             var snapshot = metricsRecorder.snapshot();
             var currProcessed = snapshot.processed();
             var tps = computeTps(previousProcessed, currProcessed, intervalSecs);
-            previousProcessed = currProcessed;
             var timestamp = clock.instant().truncatedTo(ChronoUnit.SECONDS);
             var line = formatLine(timestamp, tps, snapshot);
-            append(line);
+            if (append(line)) {
+                previousProcessed = currProcessed;
+            }
         } finally {
             lock.unlock();
         }
     }
 
-    private void append(String line) {
+    private boolean append(String line) {
         try {
             var parent = logPath.getParent();
             if (parent != null) {
@@ -107,8 +108,10 @@ public class BenchmarkLogReporter {
             if (needsHeader) {
                 headerWritten = true;
             }
+            return true;
         } catch (IOException e) {
             log.warn("failed to append benchmark log line to {}", logPath, e);
+            return false;
         }
     }
 
