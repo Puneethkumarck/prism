@@ -8,6 +8,8 @@ import com.stablebridge.prism.infrastructure.persistence.FlywayMigrator;
 
 public final class SharedPostgresContainer {
 
+    public static final String SHARED_DB_LOCK = "prism.e2e.shared-postgres";
+
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine");
 

@@ -28,21 +28,21 @@ public final class E2eBlockFixture {
 
     public static final long SLOT = 280_000_042L;
 
-    public static final byte[] LARGE_TRANSFER_SIGNATURE_BYTES = sigBytes((byte) 0xA1);
-    public static final byte[] FAILED_TX_SIGNATURE_BYTES = sigBytes((byte) 0xB2);
-    public static final byte[] MEMO_TX_SIGNATURE_BYTES = sigBytes((byte) 0xC3);
+    private static final byte[] LARGE_TRANSFER_SIGNATURE_BYTES = sigBytes((byte) 0xA1);
+    private static final byte[] FAILED_TX_SIGNATURE_BYTES = sigBytes((byte) 0xB2);
+    private static final byte[] MEMO_TX_SIGNATURE_BYTES = sigBytes((byte) 0xC3);
 
     public static final String LARGE_TRANSFER_SIGNATURE_BASE58 =
             Base58.encode(LARGE_TRANSFER_SIGNATURE_BYTES);
     public static final String FAILED_TX_SIGNATURE_BASE58 = Base58.encode(FAILED_TX_SIGNATURE_BYTES);
     public static final String MEMO_TX_SIGNATURE_BASE58 = Base58.encode(MEMO_TX_SIGNATURE_BYTES);
 
-    public static final byte[] LARGE_TRANSFER_FEE_PAYER_BYTES = pubkeyBytes((byte) 0x41);
-    public static final byte[] FAILED_TX_FEE_PAYER_BYTES = pubkeyBytes((byte) 0x52);
-    public static final byte[] MEMO_TX_FEE_PAYER_BYTES = pubkeyBytes((byte) 0x63);
-    public static final byte[] FAILED_TX_OTHER_PUBKEY_BYTES = pubkeyBytes((byte) 0x74);
-    public static final byte[] SENDER_PUBKEY_BYTES = pubkeyBytes((byte) 0x85);
-    public static final byte[] RECEIVER_PUBKEY_BYTES = pubkeyBytes((byte) 0x96);
+    private static final byte[] LARGE_TRANSFER_FEE_PAYER_BYTES = pubkeyBytes((byte) 0x41);
+    private static final byte[] FAILED_TX_FEE_PAYER_BYTES = pubkeyBytes((byte) 0x52);
+    private static final byte[] MEMO_TX_FEE_PAYER_BYTES = pubkeyBytes((byte) 0x63);
+    private static final byte[] FAILED_TX_OTHER_PUBKEY_BYTES = pubkeyBytes((byte) 0x74);
+    private static final byte[] SENDER_PUBKEY_BYTES = pubkeyBytes((byte) 0x85);
+    private static final byte[] RECEIVER_PUBKEY_BYTES = pubkeyBytes((byte) 0x96);
 
     public static final String LARGE_TRANSFER_FEE_PAYER_BASE58 =
             Base58.encode(LARGE_TRANSFER_FEE_PAYER_BYTES);

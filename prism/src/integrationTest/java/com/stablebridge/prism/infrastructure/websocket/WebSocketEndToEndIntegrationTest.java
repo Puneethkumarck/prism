@@ -33,6 +33,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,7 @@ import com.stablebridge.prism.fixtures.E2eBlockFixture;
 import com.stablebridge.prism.infrastructure.grpc.ReconnectHandler;
 import com.stablebridge.prism.testutil.SharedPostgresContainer;
 
+@ResourceLock(SharedPostgresContainer.SHARED_DB_LOCK)
 class WebSocketEndToEndIntegrationTest {
 
     private static final String SOME_WS_ENDPOINT = "wss://prism-e2e.test/blocks";
