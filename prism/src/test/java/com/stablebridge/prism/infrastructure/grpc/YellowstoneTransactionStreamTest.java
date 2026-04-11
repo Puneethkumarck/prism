@@ -154,24 +154,31 @@ class YellowstoneTransactionStreamTest {
         stream = new YellowstoneTransactionStream(channel, parser, reconnectHandler, null);
         var txConsumer = new CopyOnWriteArrayList<SolanaTransaction>();
         var acctConsumer = new CopyOnWriteArrayList<Account>();
+        var txUpdate = txWithBalances(
+                SOME_SLOT,
+                SOME_SIGNATURE_BYTES,
+                List.of(SOME_FEE_PAYER_PUBKEY_BYTES, SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
+                List.of(FIVE_SOL_LAMPORTS, FIVE_SOL_LAMPORTS, 0L),
+                List.of(FIVE_SOL_LAMPORTS, 0L, FIVE_SOL_LAMPORTS));
+        var expectedTx = parser.parseTransaction(txUpdate).orElseThrow();
+        var expectedAccount = parser.extractFeePayer(txUpdate).orElseThrow();
         stream.subscribe(txConsumer::add, acctConsumer::add);
         await().atMost(5, SECONDS).until(() -> service.responseObserver() != null);
 
         // when
-        service.send(SubscribeUpdate.newBuilder()
-                .setTransaction(txWithBalances(
-                        SOME_SLOT,
-                        SOME_SIGNATURE_BYTES,
-                        List.of(SOME_FEE_PAYER_PUBKEY_BYTES, SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
-                        List.of(FIVE_SOL_LAMPORTS, FIVE_SOL_LAMPORTS, 0L),
-                        List.of(FIVE_SOL_LAMPORTS, 0L, FIVE_SOL_LAMPORTS)))
-                .build());
+        service.send(SubscribeUpdate.newBuilder().setTransaction(txUpdate).build());
 
         // then
-        await().atMost(5, SECONDS).untilAsserted(() -> {
-            assertThat(txConsumer).hasSize(1);
-            assertThat(acctConsumer).hasSize(1);
-        });
+        await().atMost(5, SECONDS)
+                .untilAsserted(() -> assertThat(txConsumer)
+                        .singleElement()
+                        .usingRecursiveComparison()
+                        .isEqualTo(expectedTx));
+        await().atMost(5, SECONDS)
+                .untilAsserted(() -> assertThat(acctConsumer)
+                        .singleElement()
+                        .usingRecursiveComparison()
+                        .isEqualTo(expectedAccount));
     }
 
     @Test
