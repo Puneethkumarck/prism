@@ -1,6 +1,7 @@
 package com.stablebridge.prism.infrastructure.grpc;
 
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.MEMO_V1_PROGRAM_ID_BYTES;
+import static com.stablebridge.prism.fixtures.GeyserTestFixtures.MEMO_V2_PROGRAM_ID_BYTES;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.SOME_FEE_PAYER_PUBKEY_BASE58;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.SOME_FEE_PAYER_PUBKEY_BYTES;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.SOME_RECEIVER_PUBKEY_BASE58;
@@ -13,8 +14,10 @@ import static com.stablebridge.prism.fixtures.GeyserTestFixtures.failedTxWithBal
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithBalances;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithInnerMemo;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithTopLevelMemo;
+import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithoutInnerTransaction;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithoutMessage;
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithoutMeta;
+import static com.stablebridge.prism.fixtures.GeyserTestFixtures.updateWithoutTransaction;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
@@ -354,5 +357,87 @@ class TransactionParserTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldReturnEmptyWhenInnerTransactionMissing() {
+        // given
+        var tx = txWithoutInnerTransaction(SOME_SLOT, SOME_SIGNATURE_BYTES);
+
+        // when
+        var result = parser.parseTransaction(tx);
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldReturnEmptyWhenUpdateHasNoTransaction() {
+        // given
+        var tx = updateWithoutTransaction(SOME_SLOT);
+
+        // when
+        var result = parser.parseTransaction(tx);
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldExtractMemoV2FromTopLevelInstructions() {
+        // given
+        var tx = txWithTopLevelMemo(
+                SOME_SLOT,
+                SOME_SIGNATURE_BYTES,
+                List.of(SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
+                List.of(FIVE_SOL_LAMPORTS, 0L),
+                List.of(0L, FIVE_SOL_LAMPORTS),
+                MEMO_V2_PROGRAM_ID_BYTES,
+                "hello v2");
+
+        // when
+        var result = parser.parseTransaction(tx);
+
+        // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo("hello v2")
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
+        assertThat(result).isPresent();
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
+    }
+
+    @Test
+    void shouldExtractMemoV2FromInnerInstructions() {
+        // given
+        var tx = txWithInnerMemo(
+                SOME_SLOT,
+                SOME_SIGNATURE_BYTES,
+                List.of(SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
+                List.of(FIVE_SOL_LAMPORTS, 0L),
+                List.of(0L, FIVE_SOL_LAMPORTS),
+                MEMO_V2_PROGRAM_ID_BYTES,
+                "deep v2");
+
+        // when
+        var result = parser.parseTransaction(tx);
+
+        // then
+        var expected = SolanaTransaction.builder()
+                .signature(new Signature(SOME_SIGNATURE_BASE58))
+                .slot(SOME_SLOT)
+                .amount(BigDecimal.valueOf(FIVE_SOL_LAMPORTS, 9))
+                .failed(false)
+                .memo("deep v2")
+                .from(new Pubkey(TransactionParser.truncateAddress(SOME_SENDER_PUBKEY_BASE58)))
+                .to(new Pubkey(TransactionParser.truncateAddress(SOME_RECEIVER_PUBKEY_BASE58)))
+                .build();
+        assertThat(result).isPresent();
+        assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
     }
 }
