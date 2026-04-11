@@ -158,17 +158,46 @@ class IndexerConfigTest {
     }
 
     @Test
-    void shouldRejectNonPositiveApiPort() {
+    void shouldRejectNegativeApiPort() {
         // when/then
         assertThatThrownBy(() -> IndexerConfig.builder()
                         .streamMode("websocket")
                         .rpcWsEndpoint("wss://x")
                         .databaseUrl(SOME_DATABASE_URL)
                         .benchLog("benchmark.log")
-                        .apiPort(0)
+                        .apiPort(-1)
                         .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("apiPort");
+    }
+
+    @Test
+    void shouldRejectApiPortAboveMax() {
+        // when/then
+        assertThatThrownBy(() -> IndexerConfig.builder()
+                        .streamMode("websocket")
+                        .rpcWsEndpoint("wss://x")
+                        .databaseUrl(SOME_DATABASE_URL)
+                        .benchLog("benchmark.log")
+                        .apiPort(65_536)
+                        .build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("apiPort");
+    }
+
+    @Test
+    void shouldAllowEphemeralApiPort() {
+        // when
+        var config = IndexerConfig.builder()
+                .streamMode("websocket")
+                .rpcWsEndpoint("wss://x")
+                .databaseUrl(SOME_DATABASE_URL)
+                .benchLog("benchmark.log")
+                .apiPort(0)
+                .build();
+
+        // then
+        assertThat(config.apiPort()).isZero();
     }
 
     @Test

@@ -33,8 +33,11 @@ public record IndexerConfig(
         if (databaseUrl.isBlank()) {
             throw new IllegalArgumentException("databaseUrl must not be blank");
         }
-        if (apiPort <= 0) {
-            throw new IllegalArgumentException("apiPort must be positive");
+        if (apiPort < 0) {
+            throw new IllegalArgumentException("apiPort must not be negative");
+        }
+        if (apiPort > 65_535) {
+            throw new IllegalArgumentException("apiPort must not exceed 65535");
         }
     }
 
