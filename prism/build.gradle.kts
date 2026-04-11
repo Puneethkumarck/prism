@@ -69,6 +69,7 @@ dependencies {
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.hikari)
     testFixturesImplementation(libs.pgjdbc)
+    testFixturesImplementation(libs.protobuf.java)
 
     "integrationTestImplementation"(libs.testcontainers.junit5)
     "integrationTestImplementation"(libs.testcontainers.postgresql)
