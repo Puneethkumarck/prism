@@ -1,6 +1,6 @@
 [versions]
 helidon = "4.2.2"
-avaje-inject = "11.4"
+avaje-inject = "11.6"
 pgjdbc = "42.7.10"
 hikari = "6.3.3"
 jackson = "2.19.0"
