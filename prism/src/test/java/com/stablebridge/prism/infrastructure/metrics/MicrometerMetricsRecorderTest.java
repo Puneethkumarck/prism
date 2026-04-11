@@ -1,6 +1,7 @@
 package com.stablebridge.prism.infrastructure.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -97,6 +98,18 @@ class MicrometerMetricsRecorderTest {
         var expected = zeroedSnapshot();
         expected.put(ACCOUNTS_WRITTEN, 10.0);
         assertThat(snapshot(registry)).usingRecursiveComparison().isEqualTo(expected);
+    }
+
+    @Test
+    void shouldRejectNegativeAccountsWrittenCount() {
+        // given
+        var registry = new SimpleMeterRegistry();
+        var recorder = new MicrometerMetricsRecorder(registry);
+
+        // when/then
+        assertThatThrownBy(() -> recorder.recordAccountsWritten(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("count");
     }
 
     private Map<String, Double> snapshot(MeterRegistry registry) {

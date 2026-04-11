@@ -69,6 +69,9 @@ public class MicrometerMetricsRecorder implements MetricsRecorder {
 
     @Override
     public void recordAccountsWritten(int count) {
+        if (count < 0) {
+            throw new IllegalArgumentException("count must not be negative");
+        }
         accountsWritten.increment(count);
     }
 }
