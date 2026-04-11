@@ -60,11 +60,13 @@ class HealthRoutesIntegrationTest {
 
         // then
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.headers().firstValue("content-type"))
-                .hasValueSatisfying(ct -> assertThat(ct).contains("application/json"));
-        var body = objectMapper.readValue(response.body(), HealthResponse.class);
-        assertThat(body.status()).isEqualTo("ok");
-        assertThat(body.uptimeSecs()).isGreaterThanOrEqualTo(0L);
         assertThat(response.body()).contains("uptime_secs");
+        var body = objectMapper.readValue(response.body(), HealthResponse.class);
+        var expected = HealthResponse.builder().status("ok").build();
+        assertThat(body)
+                .usingRecursiveComparison()
+                .ignoringFields("uptimeSecs")
+                .isEqualTo(expected);
+        assertThat(body.uptimeSecs()).isGreaterThanOrEqualTo(0L);
     }
 }

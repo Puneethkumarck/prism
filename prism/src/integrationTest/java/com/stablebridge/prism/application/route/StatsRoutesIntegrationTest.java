@@ -123,11 +123,15 @@ class StatsRoutesIntegrationTest {
 
         // then
         assertThat(response.statusCode()).isEqualTo(200);
-        var body = objectMapper.readValue(response.body(), StatsResponse.class);
-        assertThat(body.totalTransactions()).isGreaterThanOrEqualTo(1L);
-        assertThat(body.totalTransfers()).isGreaterThanOrEqualTo(1L);
-        assertThat(body.totalMemos()).isGreaterThanOrEqualTo(1L);
-        assertThat(body.totalAccounts()).isGreaterThanOrEqualTo(1L);
         assertThat(response.body()).contains("total_transactions");
+        var body = objectMapper.readValue(response.body(), StatsResponse.class);
+        var expected = StatsResponse.builder()
+                .totalTransactions(1L)
+                .totalFailed(0L)
+                .totalTransfers(1L)
+                .totalMemos(1L)
+                .totalAccounts(1L)
+                .build();
+        assertThat(body).usingRecursiveComparison().isEqualTo(expected);
     }
 }
