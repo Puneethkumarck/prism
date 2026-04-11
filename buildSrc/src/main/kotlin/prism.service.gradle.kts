@@ -49,6 +49,7 @@ tasks.withType<JavaCompile>().configureEach {
 
 spotless {
     java {
+        targetExclude("build/generated/**")
         removeUnusedImports()
         importOrder("java|javax", "jakarta", "org", "com", "")
         trimTrailingWhitespace()
