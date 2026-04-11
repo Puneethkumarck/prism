@@ -63,6 +63,8 @@ public class YellowstoneTransactionStream implements TransactionStream {
 
     @Override
     public void subscribe(Consumer<SolanaTransaction> txConsumer, Consumer<Account> acctConsumer) {
+        Objects.requireNonNull(txConsumer, "txConsumer must not be null");
+        Objects.requireNonNull(acctConsumer, "acctConsumer must not be null");
         if (!running.compareAndSet(false, true)) {
             return;
         }
@@ -206,8 +208,16 @@ public class YellowstoneTransactionStream implements TransactionStream {
 
         private void handleTransaction(SubscribeUpdate update) {
             var txUpdate = update.getTransaction();
-            parser.parseTransaction(txUpdate).ifPresent(txConsumer);
-            parser.extractFeePayer(txUpdate).ifPresent(acctConsumer);
+            try {
+                parser.parseTransaction(txUpdate).ifPresent(txConsumer);
+            } catch (RuntimeException e) {
+                log.warn("failed to parse or forward transaction update", e);
+            }
+            try {
+                parser.extractFeePayer(txUpdate).ifPresent(acctConsumer);
+            } catch (RuntimeException e) {
+                log.warn("failed to extract or forward fee payer", e);
+            }
         }
 
         private void respondToPing() {

@@ -7,15 +7,19 @@ import static com.stablebridge.prism.fixtures.GeyserTestFixtures.SOME_SIGNATURE_
 import static com.stablebridge.prism.fixtures.GeyserTestFixtures.txWithBalances;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -36,6 +40,7 @@ import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeRequestP
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdate;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdatePing;
 import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateSlot;
+import com.stablebridge.prism.infrastructure.grpc.proto.geyser.SubscribeUpdateTransaction;
 
 import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
@@ -181,6 +186,62 @@ class YellowstoneTransactionStreamTest {
                         .singleElement()
                         .usingRecursiveComparison()
                         .isEqualTo(expectedAccount));
+    }
+
+    @Test
+    void shouldRejectNullTxConsumer() {
+        // given
+        stream = new YellowstoneTransactionStream(channel, parser, reconnectHandler, null);
+
+        // when / then
+        assertThatThrownBy(() -> stream.subscribe(null, acct -> {}))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("txConsumer");
+    }
+
+    @Test
+    void shouldRejectNullAcctConsumer() {
+        // given
+        stream = new YellowstoneTransactionStream(channel, parser, reconnectHandler, null);
+
+        // when / then
+        assertThatThrownBy(() -> stream.subscribe(tx -> {}, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("acctConsumer");
+    }
+
+    @Test
+    void shouldKeepStreamAliveWhenParserThrows() {
+        // given
+        var failingParser = mock(TransactionParser.class);
+        var expectedAccount = parser.extractFeePayer(txWithBalances(
+                        SOME_SLOT,
+                        SOME_SIGNATURE_BYTES,
+                        List.of(SOME_FEE_PAYER_PUBKEY_BYTES, SOME_SENDER_PUBKEY_BYTES, SOME_RECEIVER_PUBKEY_BYTES),
+                        List.of(FIVE_SOL_LAMPORTS, FIVE_SOL_LAMPORTS, 0L),
+                        List.of(FIVE_SOL_LAMPORTS, 0L, FIVE_SOL_LAMPORTS)))
+                .orElseThrow();
+        given(failingParser.parseTransaction(any())).willThrow(new RuntimeException("boom"));
+        given(failingParser.extractFeePayer(any())).willReturn(Optional.of(expectedAccount));
+        stream = new YellowstoneTransactionStream(channel, failingParser, reconnectHandler, null);
+        var txConsumer = new CopyOnWriteArrayList<SolanaTransaction>();
+        var acctConsumer = new CopyOnWriteArrayList<Account>();
+        stream.subscribe(txConsumer::add, acctConsumer::add);
+        await().atMost(5, SECONDS).until(() -> service.responseObserver() != null);
+
+        // when
+        service.send(SubscribeUpdate.newBuilder()
+                .setTransaction(SubscribeUpdateTransaction.getDefaultInstance())
+                .build());
+
+        // then
+        await().atMost(5, SECONDS)
+                .untilAsserted(() -> assertThat(acctConsumer)
+                        .singleElement()
+                        .usingRecursiveComparison()
+                        .isEqualTo(expectedAccount));
+        assertThat(txConsumer).isEmpty();
+        assertThat(service.subscribeCount()).isEqualTo(1);
     }
 
     @Test
