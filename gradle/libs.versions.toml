@@ -21,7 +21,7 @@ logstash-logback = "9.0"
 jansi = "2.4.3"
 junit = "6.0.3"
 slf4j = "2.0.17"
-web3j = "5.0.0"
+web3j = "5.0.2"
 
 [libraries]
 helidon-webserver = { module = "io.helidon.webserver:helidon-webserver", version.ref = "helidon" }
