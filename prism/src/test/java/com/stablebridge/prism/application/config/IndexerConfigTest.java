@@ -469,47 +469,75 @@ class IndexerConfigTest {
     class ChainDefaults {
 
         @Test
-        void shouldUseEthereumDefaultsForConfirmationAndReorg() {
+        void shouldUseEthereumDefaultConfirmationBlocks() {
             // when
-            var confirmationBlocks = IndexerConfig.defaultConfirmationBlocks("ethereum");
-            var maxReorgDepth = IndexerConfig.defaultMaxReorgDepth("ethereum");
+            var result = IndexerConfig.defaultConfirmationBlocks("ethereum");
 
             // then
-            assertThat(confirmationBlocks).isEqualTo(12);
-            assertThat(maxReorgDepth).isEqualTo(64);
+            assertThat(result).isEqualTo(12);
         }
 
         @Test
-        void shouldUsePolygonDefaultsForConfirmationAndReorg() {
+        void shouldUseEthereumDefaultMaxReorgDepth() {
             // when
-            var confirmationBlocks = IndexerConfig.defaultConfirmationBlocks("polygon");
-            var maxReorgDepth = IndexerConfig.defaultMaxReorgDepth("polygon");
+            var result = IndexerConfig.defaultMaxReorgDepth("ethereum");
 
             // then
-            assertThat(confirmationBlocks).isEqualTo(128);
-            assertThat(maxReorgDepth).isEqualTo(128);
+            assertThat(result).isEqualTo(64);
         }
 
         @Test
-        void shouldUseZeroDefaultsForArbitrum() {
+        void shouldUsePolygonDefaultConfirmationBlocks() {
             // when
-            var confirmationBlocks = IndexerConfig.defaultConfirmationBlocks("arbitrum");
-            var maxReorgDepth = IndexerConfig.defaultMaxReorgDepth("arbitrum");
+            var result = IndexerConfig.defaultConfirmationBlocks("polygon");
 
             // then
-            assertThat(confirmationBlocks).isZero();
-            assertThat(maxReorgDepth).isZero();
+            assertThat(result).isEqualTo(128);
         }
 
         @Test
-        void shouldUseZeroDefaultsForBase() {
+        void shouldUsePolygonDefaultMaxReorgDepth() {
             // when
-            var confirmationBlocks = IndexerConfig.defaultConfirmationBlocks("base");
-            var maxReorgDepth = IndexerConfig.defaultMaxReorgDepth("base");
+            var result = IndexerConfig.defaultMaxReorgDepth("polygon");
 
             // then
-            assertThat(confirmationBlocks).isZero();
-            assertThat(maxReorgDepth).isZero();
+            assertThat(result).isEqualTo(128);
+        }
+
+        @Test
+        void shouldUseZeroDefaultConfirmationBlocksForArbitrum() {
+            // when
+            var result = IndexerConfig.defaultConfirmationBlocks("arbitrum");
+
+            // then
+            assertThat(result).isZero();
+        }
+
+        @Test
+        void shouldUseZeroDefaultMaxReorgDepthForArbitrum() {
+            // when
+            var result = IndexerConfig.defaultMaxReorgDepth("arbitrum");
+
+            // then
+            assertThat(result).isZero();
+        }
+
+        @Test
+        void shouldUseZeroDefaultConfirmationBlocksForBase() {
+            // when
+            var result = IndexerConfig.defaultConfirmationBlocks("base");
+
+            // then
+            assertThat(result).isZero();
+        }
+
+        @Test
+        void shouldUseZeroDefaultMaxReorgDepthForBase() {
+            // when
+            var result = IndexerConfig.defaultMaxReorgDepth("base");
+
+            // then
+            assertThat(result).isZero();
         }
 
         @Test
@@ -538,9 +566,23 @@ class IndexerConfigTest {
             // given
             var config = evmConfigBuilder().build();
 
+            // when
+            var result = config.isEvmMode();
+
             // then
-            assertThat(config.isEvmMode()).isTrue();
-            assertThat(config.isSolanaMode()).isFalse();
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        void shouldReturnFalseForIsSolanaModeWhenChainIsEthereum() {
+            // given
+            var config = evmConfigBuilder().build();
+
+            // when
+            var result = config.isSolanaMode();
+
+            // then
+            assertThat(result).isFalse();
         }
 
         @Test
@@ -548,9 +590,23 @@ class IndexerConfigTest {
             // given
             var config = indexerConfigBuilder().build();
 
+            // when
+            var result = config.isSolanaMode();
+
             // then
-            assertThat(config.isSolanaMode()).isTrue();
-            assertThat(config.isEvmMode()).isFalse();
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        void shouldReturnFalseForIsEvmModeWhenChainIsSolana() {
+            // given
+            var config = indexerConfigBuilder().build();
+
+            // when
+            var result = config.isEvmMode();
+
+            // then
+            assertThat(result).isFalse();
         }
 
         @Test
@@ -558,8 +614,11 @@ class IndexerConfigTest {
             // given
             var config = evmConfigBuilder().chainMode("polygon").build();
 
+            // when
+            var result = config.isEvmMode();
+
             // then
-            assertThat(config.isEvmMode()).isTrue();
+            assertThat(result).isTrue();
         }
 
         @Test
@@ -567,8 +626,11 @@ class IndexerConfigTest {
             // given
             var config = evmConfigBuilder().chainMode("arbitrum").build();
 
+            // when
+            var result = config.isEvmMode();
+
             // then
-            assertThat(config.isEvmMode()).isTrue();
+            assertThat(result).isTrue();
         }
 
         @Test
@@ -576,8 +638,11 @@ class IndexerConfigTest {
             // given
             var config = evmConfigBuilder().chainMode("base").build();
 
+            // when
+            var result = config.isEvmMode();
+
             // then
-            assertThat(config.isEvmMode()).isTrue();
+            assertThat(result).isTrue();
         }
     }
 
