@@ -21,6 +21,7 @@ logstash-logback = "9.0"
 jansi = "2.4.3"
 junit = "6.0.3"
 slf4j = "2.0.17"
+web3j = "5.0.0"
 
 [libraries]
 helidon-webserver = { module = "io.helidon.webserver:helidon-webserver", version.ref = "helidon" }
@@ -87,3 +88,7 @@ logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "lo
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
 
 jansi = { module = "org.fusesource.jansi:jansi", version.ref = "jansi" }
+
+web3j-abi = { module = "org.web3j:abi", version.ref = "web3j" }
+web3j-utils = { module = "org.web3j:utils", version.ref = "web3j" }
+web3j-crypto = { module = "org.web3j:crypto", version.ref = "web3j" }

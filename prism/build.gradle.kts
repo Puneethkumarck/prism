@@ -48,6 +48,10 @@ dependencies {
 
     implementation(libs.jansi)
 
+    implementation(libs.web3j.abi)
+    implementation(libs.web3j.utils)
+    implementation(libs.web3j.crypto)
+
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
 
