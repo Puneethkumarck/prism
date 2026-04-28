@@ -13,7 +13,7 @@ public final class EvmTestFixtures {
             "0x4e3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a1bdd";
     public static final String SOME_PARENT_HASH =
             "0x3a3a3754410177e6937ef1f84bba68ea139e8d1a2258c5f85db9f1cd715a0aaa";
-    public static final String SOME_ADDRESS = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
+    public static final String SOME_ADDRESS = "0x4675c7e5baafbffbca748158becba61ef3b0a263";
     public static final String SOME_FROM_ADDRESS = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
     public static final String SOME_TO_ADDRESS = "0x742d35cc6634c0532925a3b844bc454e4438f44e";
     public static final String SOME_ERC20_TOKEN_ADDRESS =

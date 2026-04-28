@@ -61,9 +61,9 @@ class EvmTestFixturesTest {
     }
 
     @Test
-    void shouldExposePositiveBlockNumber() {
+    void shouldExposeRecentMainnetBlockNumber() {
         // then
-        assertThat(EvmTestFixtures.SOME_BLOCK).isPositive();
+        assertThat(EvmTestFixtures.SOME_BLOCK).isEqualTo(19_000_000L);
     }
 
     @Test
